@@ -11,6 +11,32 @@ It should be used with process isolation, filesystem permissions, network
 controls, credential scoping, and infrastructure-level access controls
 appropriate to the deployment environment.
 
+## Current Trust Boundaries
+
+AgentGate assumes the caller can submit untrusted tool requests, but the Python
+process running AgentGate is trusted application code.
+
+Current enforced boundaries:
+
+- Policy decisions happen before tool execution.
+- The local executor requires an explicit authorization marker.
+- Approval-required requests are stored by exact request payload.
+- Approved requests are claimed before execution and can execute only once.
+- File resources are normalized and checked against configured public/private
+  workspace roots.
+- Audit payloads pass through shared redaction before JSONL write.
+
+Current non-boundaries:
+
+- AgentGate does not isolate the Python process from the operating system.
+- AgentGate does not prevent direct filesystem access by code that bypasses its
+  executor.
+- AgentGate does not authenticate CLI users.
+- AgentGate does not encrypt local SQLite or JSONL files.
+- AgentGate does not provide cross-host distributed locking.
+- AgentGate does not validate the semantic safety of file contents read by an
+  agent.
+
 ## What AgentGate Can Help With
 
 - Making tool permissions explicit and testable.
@@ -74,17 +100,35 @@ Avoid logging:
 
 ## Redaction
 
-Initial redaction should catch common high-risk strings:
+Redaction should catch common high-risk strings and key names:
 
 - `sk-` style API keys
 - bearer tokens
+- basic auth credentials
+- AWS-style access key IDs
 - `Authorization` headers
+- cookies and session fields
 - private key blocks
 - password-like key names
 - token-like key names
 
 Redaction is defense-in-depth. Do not rely on redaction as the only privacy
 control.
+
+## Known Limitations
+
+- The local executor is intentionally narrow and should not be treated as an OS
+  sandbox.
+- The SQLite approval queue is suitable for local demos and tests, not a
+  distributed production approval system.
+- Audit logs are append-only by convention in this implementation, but local
+  users with filesystem access can still modify or delete them.
+- Secret detection uses deterministic patterns and may miss unknown secret
+  formats or over-redact benign fields.
+- Approval is request-specific; broad reusable grants are intentionally not
+  implemented.
+- Optional adapters normalize tested dictionary shapes only. They do not prove
+  compatibility with full provider SDK runtimes.
 
 ## Prompt Injection Risk
 
@@ -127,4 +171,3 @@ When adding integrations:
 - Avoid token passthrough.
 - Document the integration's trust boundary.
 - Make telemetry opt-in and easy to disable.
-

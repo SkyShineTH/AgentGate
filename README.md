@@ -19,6 +19,7 @@ in audit logs.
 - Public/private workspace boundaries with path traversal protection
 - Request-specific human approval before approved execution
 - SQLite approval queue and JSONL audit log
+- Explicit execution authorization and regression tests for bypass cases
 - Optional adapter helpers that convert external tool-call shapes into the
   canonical `ToolRequest`
 - Synthetic PersonalOps demo data only, with no provider SDK dependency
@@ -94,6 +95,15 @@ CLI or adapter
 
 See [Architecture](docs/ARCHITECTURE.md) and
 [Architecture diagram](docs/ARCHITECTURE_DIAGRAM.md).
+
+## Security Posture
+
+AgentGate is a permission gateway, not a sandbox. It enforces policy and
+approval checks inside its own execution path, but it should be combined with
+OS-level isolation, filesystem permissions, network controls, and scoped
+credentials for real deployments.
+
+See [Security and privacy](docs/SECURITY_PRIVACY.md).
 
 ## Project Context
 

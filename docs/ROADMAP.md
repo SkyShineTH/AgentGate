@@ -155,9 +155,40 @@ Exit criteria:
 - The project can be run locally.
 - Tests demonstrate the permission boundary.
 
+## Phase 6: Security and Reliability Hardening
+
+Status: In progress
+
+Implemented notes:
+
+- Tool execution now requires an explicit authorization marker from an allow or
+  approval path.
+- Approved requests are claimed atomically before execution to reduce
+  double-execution risk.
+- Secret detection and audit redaction share the same helper.
+- Regression tests cover direct executor bypass, approval execution claiming,
+  authorization-header denial, and audit redaction for common secret carriers.
+
+Goals:
+
+- Enforce explicit authorization at execution boundaries.
+- Prevent approval race conditions with atomic execution claiming.
+- Centralize secret detection and audit redaction.
+- Add regression tests for security-sensitive bypass cases.
+- Document remaining trust boundaries and known limitations.
+
+Exit criteria:
+
+- Tests cover known execution and approval bypass risks.
+- Security and privacy docs describe what AgentGate does and does not protect.
+- Known limitations are explicit and avoid production-security overclaims.
+- Default tests and demo still run locally without network access or API keys.
+
 ## Open Questions
 
 - Should the first policy representation be Python rules or YAML?
 - Should the CLI be the only interface until Phase 3?
 - Should the approval store start as SQLite or JSON files?
 - Which adapter gives the clearest portfolio signal first?
+- Should Phase 6 add file-locking or process-level coordination around SQLite
+  writes for heavier concurrent local demos?
