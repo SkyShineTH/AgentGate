@@ -44,6 +44,19 @@ agentgate approvals execute <approval-id>
 Approved execution uses the exact stored request payload. Shell execution and
 delete execution are not implemented by the local executor.
 
+## PersonalOps Demo
+
+Run the synthetic job-search workflow demo:
+
+```bash
+agentgate demo personalops
+```
+
+The demo copies sample public/private workspace files into
+`.agentgate/personalops-demo/`, evaluates static request JSON, auto-approves one
+private tracker append as `demo-human`, and writes a JSONL audit log for the
+policy, approval, and execution lifecycle.
+
 Run the tests with:
 
 ```bash

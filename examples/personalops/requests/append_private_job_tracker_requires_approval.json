@@ -1,0 +1,14 @@
+{
+  "request_id": "req_personalops_append_tracker",
+  "actor": "demo-agent",
+  "tool": "file.append",
+  "action": "append",
+  "resource": "examples/workspace/private/job-tracker.csv",
+  "input": {
+    "content": "Contoso Analytics,Developer Tools Engineer,queued,Send synthetic follow-up\n"
+  },
+  "metadata": {
+    "scenario": "approved_private_tracker_update"
+  }
+}
+

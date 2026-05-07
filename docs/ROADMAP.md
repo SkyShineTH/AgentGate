@@ -74,7 +74,16 @@ Exit criteria:
 
 ## Phase 3: PersonalOps Demo
 
-Status: Planned
+Status: Implemented
+
+Implemented notes:
+
+- Synthetic job-search sample data lives under `examples/personalops/`.
+- `agentgate demo personalops` runs static JSON requests through the gateway.
+- The demo shows an allowed public read, an approval-required private tracker
+  append, a denied delete request, and denied shell execution.
+- Runtime state is copied into `.agentgate/personalops-demo/` so tracked
+  fixtures are not mutated.
 
 Goals:
 

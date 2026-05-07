@@ -1,0 +1,12 @@
+{
+  "request_id": "req_personalops_read_plan",
+  "actor": "demo-agent",
+  "tool": "file.read",
+  "action": "read",
+  "resource": "examples/workspace/public/job-search-plan.md",
+  "input": {},
+  "metadata": {
+    "scenario": "safe_public_job_plan_read"
+  }
+}
+

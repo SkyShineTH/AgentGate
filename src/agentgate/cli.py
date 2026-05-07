@@ -16,17 +16,21 @@ from agentgate.approvals import (
     ExecutionStatus,
 )
 from agentgate.audit import AuditLog
+from agentgate.demo import run_personalops_demo
 from agentgate.policy import PolicyEngine
 from agentgate.schemas import Decision, DecisionStatus, RiskLevel, ToolRequest
 from agentgate.tools import ToolExecutor
 
 app = typer.Typer(add_completion=False, help="AgentGate policy gateway CLI.")
 approvals_app = typer.Typer(help="Manage pending approval requests.")
+demo_app = typer.Typer(help="Run local synthetic demos.")
 app.add_typer(approvals_app, name="approvals")
+app.add_typer(demo_app, name="demo")
 
 DEFAULT_STATE_DIR = Path(".agentgate")
 DEFAULT_APPROVAL_DB = DEFAULT_STATE_DIR / "approvals.sqlite"
 DEFAULT_AUDIT_LOG = DEFAULT_STATE_DIR / "audit.jsonl"
+DEFAULT_PERSONALOPS_DEMO_DIR = DEFAULT_STATE_DIR / "personalops-demo"
 
 
 @app.callback()
@@ -226,6 +230,33 @@ def execute(
         payload={"result": result.model_dump(mode="json")},
     )
     _echo_json(result)
+
+
+@demo_app.command()
+def personalops(
+    state_dir: Path = typer.Option(
+        DEFAULT_PERSONALOPS_DEMO_DIR,
+        "--state-dir",
+        help="Runtime state directory for the demo workspace, queue, and audit log.",
+    ),
+    reset: bool = typer.Option(
+        True,
+        "--reset/--no-reset",
+        help="Reset demo state before running.",
+    ),
+    auto_approve: bool = typer.Option(
+        True,
+        "--auto-approve/--no-auto-approve",
+        help="Automatically approve the demo write request.",
+    ),
+) -> None:
+    """Run the synthetic PersonalOps approval workflow demo."""
+    report = run_personalops_demo(
+        state_dir=state_dir,
+        reset=reset,
+        auto_approve=auto_approve,
+    )
+    _echo_json(report)
 
 
 def _load_json(path: Path) -> dict[str, Any]:

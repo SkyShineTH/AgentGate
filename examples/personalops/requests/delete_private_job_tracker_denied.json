@@ -1,0 +1,12 @@
+{
+  "request_id": "req_personalops_delete_tracker",
+  "actor": "demo-agent",
+  "tool": "file.delete",
+  "action": "delete",
+  "resource": "examples/workspace/private/job-tracker.csv",
+  "input": {},
+  "metadata": {
+    "scenario": "delete_private_tracker_denied"
+  }
+}
+

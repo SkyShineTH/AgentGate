@@ -1,0 +1,14 @@
+{
+  "request_id": "req_personalops_shell_denied",
+  "actor": "demo-agent",
+  "tool": "shell.execute",
+  "action": "execute",
+  "resource": "local-shell",
+  "input": {
+    "command": "echo synthetic-personalops-demo"
+  },
+  "metadata": {
+    "scenario": "shell_command_denied"
+  }
+}
+
