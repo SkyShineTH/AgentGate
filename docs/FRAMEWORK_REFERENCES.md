@@ -34,6 +34,9 @@ AgentGate use:
 - Informative reference for tool-call guardrail patterns.
 - Possible future adapter where a tool guardrail calls AgentGate policy before
   execution.
+- Current implementation includes a narrow OpenAI-style function-call dictionary
+  adapter. It imports no OpenAI SDK and should not be described as full SDK
+  compatibility.
 
 Sources:
 
@@ -98,4 +101,3 @@ External agent framework -> adapter -> AgentGate policy/approval/audit -> tool
 
 It should not duplicate full orchestration, memory, model routing, or tool
 protocol ecosystems.
-

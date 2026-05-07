@@ -57,6 +57,13 @@ The demo copies sample public/private workspace files into
 private tracker append as `demo-human`, and writes a JSONL audit log for the
 policy, approval, and execution lifecycle.
 
+## Optional Adapters
+
+Adapter helpers live under `agentgate.adapters` and convert external tool-call
+shapes into the canonical `ToolRequest`. The current OpenAI-style adapter
+accepts plain function-call dictionaries only and does not require or claim full
+OpenAI SDK compatibility.
+
 Run the tests with:
 
 ```bash

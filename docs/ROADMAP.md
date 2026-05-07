@@ -100,7 +100,17 @@ Exit criteria:
 
 ## Phase 4: Optional Agent Adapter
 
-Status: Planned
+Status: Implemented
+
+Implemented notes:
+
+- Added optional adapter helpers under `agentgate.adapters`.
+- `JsonToolRequestAdapter` converts plain canonical JSON payloads.
+- `OpenAIFunctionToolCallAdapter` converts a tested OpenAI-style function-call
+  dictionary into `ToolRequest` without importing any provider SDK.
+- Adapter tests verify converted requests reach the same policy decisions as
+  native AgentGate requests.
+- This does not claim full OpenAI Agents SDK compatibility.
 
 Goals:
 
