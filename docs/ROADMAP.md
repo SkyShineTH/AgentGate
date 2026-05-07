@@ -157,7 +157,7 @@ Exit criteria:
 
 ## Phase 6: Security and Reliability Hardening
 
-Status: In progress
+Status: Implemented
 
 Implemented notes:
 
@@ -168,6 +168,8 @@ Implemented notes:
 - Secret detection and audit redaction share the same helper.
 - Regression tests cover direct executor bypass, approval execution claiming,
   authorization-header denial, and audit redaction for common secret carriers.
+- A two-queue SQLite regression test verifies that one approved request cannot
+  be claimed twice across separate queue instances.
 
 Goals:
 
@@ -190,5 +192,3 @@ Exit criteria:
 - Should the CLI be the only interface until Phase 3?
 - Should the approval store start as SQLite or JSON files?
 - Which adapter gives the clearest portfolio signal first?
-- Should Phase 6 add file-locking or process-level coordination around SQLite
-  writes for heavier concurrent local demos?

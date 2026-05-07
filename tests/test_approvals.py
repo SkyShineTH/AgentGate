@@ -219,6 +219,28 @@ def test_mark_executed_requires_claimed_approval(tmp_path: Path) -> None:
         )
 
 
+def test_two_queue_instances_cannot_claim_same_approval(tmp_path: Path) -> None:
+    db_path = tmp_path / "approvals.sqlite"
+    first_queue = ApprovalQueue(db_path)
+    second_queue = ApprovalQueue(db_path)
+    request = approval_request(tmp_path)
+    record = first_queue.create_pending(request, approval_decision(request))
+    first_queue.approve(
+        record.approval_id,
+        approver="human-reviewer",
+        expected_request_id=request.request_id,
+    )
+
+    claimed = first_queue.claim_for_execution(record.approval_id)
+
+    assert claimed.execution_status == ExecutionStatus.IN_PROGRESS
+    with pytest.raises(ApprovalNotExecutable):
+        second_queue.claim_for_execution(record.approval_id)
+    assert second_queue.get(record.approval_id).execution_status == (
+        ExecutionStatus.IN_PROGRESS
+    )
+
+
 def test_executor_uses_stored_approved_request_payload(tmp_path: Path) -> None:
     approvals = queue(tmp_path)
     request = approval_request(tmp_path)
