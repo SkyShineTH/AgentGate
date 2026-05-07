@@ -132,7 +132,14 @@ Exit criteria:
 
 ## Phase 5: Portfolio Polish
 
-Status: Planned
+Status: Implemented
+
+Implemented notes:
+
+- README now provides a quick reviewer path, demo commands, and project links.
+- Added a Mermaid architecture diagram.
+- Added GitHub Actions CI for `python -m pytest`.
+- Added portfolio positioning notes and a resume bullet.
 
 Goals:
 

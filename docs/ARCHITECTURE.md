@@ -12,6 +12,9 @@ Provider and framework integrations belong in adapters. The canonical tool
 request format is the internal contract used by policy evaluation, approval,
 execution, audit logging, and tests.
 
+See [Architecture diagram](ARCHITECTURE_DIAGRAM.md) for the current request
+lifecycle view.
+
 ## System Flow
 
 ```text
@@ -170,4 +173,3 @@ tool silently.
   approve/reject?
 - Should policy be expressed as Python rules first or YAML rules first?
 - Should shell execution exist in the MVP as denied examples only?
-
