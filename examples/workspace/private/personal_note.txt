@@ -1,0 +1,2 @@
+This is synthetic private workspace content for boundary tests.
+

@@ -1,0 +1,12 @@
+{
+  "request_id": "req_unknown_tool",
+  "actor": "demo-agent",
+  "tool": "browser.open",
+  "action": "open",
+  "resource": "https://example.invalid",
+  "input": {},
+  "metadata": {
+    "scenario": "unknown_tool_denied"
+  }
+}
+

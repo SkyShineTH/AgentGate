@@ -1,0 +1,12 @@
+{
+  "request_id": "req_read_public_file",
+  "actor": "demo-agent",
+  "tool": "file.read",
+  "action": "read",
+  "resource": "examples/workspace/public/sample_note.txt",
+  "input": {},
+  "metadata": {
+    "scenario": "safe_public_read"
+  }
+}
+

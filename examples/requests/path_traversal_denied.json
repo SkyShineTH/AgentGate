@@ -1,0 +1,12 @@
+{
+  "request_id": "req_path_traversal",
+  "actor": "demo-agent",
+  "tool": "file.read",
+  "action": "read",
+  "resource": "examples/workspace/public/../private/personal_note.txt",
+  "input": {},
+  "metadata": {
+    "scenario": "path_traversal_denied"
+  }
+}
+

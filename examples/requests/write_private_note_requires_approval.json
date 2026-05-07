@@ -1,0 +1,14 @@
+{
+  "request_id": "req_write_private_note",
+  "actor": "demo-agent",
+  "tool": "file.write",
+  "action": "write",
+  "resource": "examples/workspace/private/draft_note.txt",
+  "input": {
+    "content": "Synthetic draft note for an approval workflow demo."
+  },
+  "metadata": {
+    "scenario": "write_requires_approval"
+  }
+}
+

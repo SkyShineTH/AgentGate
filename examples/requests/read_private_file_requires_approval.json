@@ -1,0 +1,12 @@
+{
+  "request_id": "req_read_private_file",
+  "actor": "demo-agent",
+  "tool": "file.read",
+  "action": "read",
+  "resource": "examples/workspace/private/personal_note.txt",
+  "input": {},
+  "metadata": {
+    "scenario": "private_note_boundary"
+  }
+}
+

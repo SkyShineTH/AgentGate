@@ -18,3 +18,21 @@ allowed, denied, or requires human approval before execution.
 - [Roadmap](docs/ROADMAP.md)
 - [Framework references](docs/FRAMEWORK_REFERENCES.md)
 - [Glossary](docs/GLOSSARY.md)
+
+## Phase 1 CLI
+
+AgentGate can evaluate a structured tool request without any provider SDK:
+
+```bash
+python -m pip install -e .[dev]
+agentgate check examples/requests/read_public_file.json
+```
+
+The command prints a JSON policy decision with `status`, `risk`, `reason`,
+`matched_rule`, and `request_id`.
+
+Run the Phase 1 tests with:
+
+```bash
+python -m pytest
+```

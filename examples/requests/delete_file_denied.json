@@ -1,0 +1,12 @@
+{
+  "request_id": "req_delete_file",
+  "actor": "demo-agent",
+  "tool": "file.delete",
+  "action": "delete",
+  "resource": "examples/workspace/public/sample_note.txt",
+  "input": {},
+  "metadata": {
+    "scenario": "delete_is_denied"
+  }
+}
+
