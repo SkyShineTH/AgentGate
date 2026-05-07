@@ -29,7 +29,14 @@ class ToolExecutor:
     def default(cls) -> "ToolExecutor":
         return cls()
 
-    def execute(self, request: ToolRequest) -> ExecutionResult:
+    def execute(self, request: ToolRequest, *, authorized: bool = False) -> ExecutionResult:
+        if not authorized:
+            return self._result(
+                request,
+                result_status="denied",
+                message="Tool execution requires an allow decision or approved request.",
+            )
+
         if request.tool == "shell.execute":
             return self._result(
                 request,
@@ -127,4 +134,3 @@ class ToolExecutor:
             message=message,
             bytes_processed=bytes_processed,
         )
-

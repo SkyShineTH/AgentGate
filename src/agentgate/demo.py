@@ -91,7 +91,7 @@ def run_personalops_demo(
         )
 
         if decision.status == DecisionStatus.ALLOW:
-            result = executor.execute(request)
+            result = executor.execute(request, authorized=True)
             audit.record(
                 event_type="executed",
                 request=request,
@@ -129,8 +129,8 @@ def run_personalops_demo(
                         "decided_by": record.decided_by,
                     },
                 )
-                approved_request = queue.get_executable_request(record.approval_id)
-                result = executor.execute(approved_request)
+                claimed = queue.claim_for_execution(record.approval_id)
+                result = executor.execute(claimed.request, authorized=True)
                 executed_status = ExecutionStatus(result.result_status)
                 queue.mark_executed(
                     record.approval_id,
@@ -138,7 +138,7 @@ def run_personalops_demo(
                 )
                 audit.record(
                     event_type="executed",
-                    request=approved_request,
+                    request=claimed.request,
                     decision=record.decision,
                     approval_id=record.approval_id,
                     result_status=result.result_status,
@@ -168,4 +168,3 @@ def _seed_workspace(state_dir: Path) -> Path:
 def _load_request(path: Path) -> ToolRequest:
     payload = json.loads(path.read_text(encoding="utf-8"))
     return ToolRequest.model_validate(payload)
-

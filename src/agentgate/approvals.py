@@ -23,6 +23,7 @@ class ApprovalStatus(str, Enum):
 
 class ExecutionStatus(str, Enum):
     NOT_EXECUTED = "not_executed"
+    IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     FAILED = "failed"
     DENIED = "denied"
@@ -155,12 +156,33 @@ class ApprovalQueue:
         )
 
     def get_executable_request(self, approval_id: str) -> ToolRequest:
+        return self.claim_for_execution(approval_id).request
+
+    def claim_for_execution(self, approval_id: str) -> ApprovalRecord:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE approvals
+                SET execution_status = ?
+                WHERE approval_id = ?
+                  AND status = ?
+                  AND execution_status = ?
+                """,
+                (
+                    ExecutionStatus.IN_PROGRESS.value,
+                    approval_id,
+                    ApprovalStatus.APPROVED.value,
+                    ExecutionStatus.NOT_EXECUTED.value,
+                ),
+            )
+
+        if cursor.rowcount == 1:
+            return self.get(approval_id)
+
         record = self.get(approval_id)
         if record.status != ApprovalStatus.APPROVED:
             raise ApprovalNotExecutable("Only approved requests can execute.")
-        if record.execution_status != ExecutionStatus.NOT_EXECUTED:
-            raise ApprovalNotExecutable("Approved requests can execute only once.")
-        return record.request
+        raise ApprovalNotExecutable("Approved requests can execute only once.")
 
     def mark_executed(
         self, approval_id: str, *, result_status: ExecutionStatus
@@ -168,8 +190,8 @@ class ApprovalQueue:
         record = self.get(approval_id)
         if record.status != ApprovalStatus.APPROVED:
             raise ApprovalNotExecutable("Only approved requests can be marked executed.")
-        if record.execution_status != ExecutionStatus.NOT_EXECUTED:
-            raise ApprovalNotExecutable("Approval was already executed.")
+        if record.execution_status != ExecutionStatus.IN_PROGRESS:
+            raise ApprovalNotExecutable("Approval must be claimed before execution.")
 
         with self._connect() as conn:
             conn.execute(

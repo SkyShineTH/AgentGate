@@ -210,11 +210,11 @@ def execute(
     """Execute the exact stored request for an approved approval."""
     queue = ApprovalQueue(approval_db)
     try:
-        request = queue.get_executable_request(approval_id)
+        record = queue.claim_for_execution(approval_id)
     except (ApprovalNotExecutable, ApprovalNotFound) as exc:
         _fail(str(exc))
 
-    result = ToolExecutor.default().execute(request)
+    result = ToolExecutor.default().execute(record.request, authorized=True)
     execution_status = ExecutionStatus(result.result_status)
     try:
         record = queue.mark_executed(approval_id, result_status=execution_status)

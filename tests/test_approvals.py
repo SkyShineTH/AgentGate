@@ -187,8 +187,11 @@ def test_only_approved_requests_are_executable_once(tmp_path: Path) -> None:
         approver="human-reviewer",
         expected_request_id=request.request_id,
     )
-    executable = approvals.get_executable_request(record.approval_id)
-    assert executable.request_id == request.request_id
+    claimed = approvals.claim_for_execution(record.approval_id)
+    assert claimed.request.request_id == request.request_id
+    assert claimed.execution_status == ExecutionStatus.IN_PROGRESS
+    with pytest.raises(ApprovalNotExecutable):
+        approvals.claim_for_execution(record.approval_id)
 
     executed = approvals.mark_executed(
         record.approval_id,
@@ -197,6 +200,23 @@ def test_only_approved_requests_are_executable_once(tmp_path: Path) -> None:
     assert executed.execution_status == ExecutionStatus.COMPLETED
     with pytest.raises(ApprovalNotExecutable):
         approvals.get_executable_request(record.approval_id)
+
+
+def test_mark_executed_requires_claimed_approval(tmp_path: Path) -> None:
+    approvals = queue(tmp_path)
+    request = approval_request(tmp_path)
+    record = approvals.create_pending(request, approval_decision(request))
+    approvals.approve(
+        record.approval_id,
+        approver="human-reviewer",
+        expected_request_id=request.request_id,
+    )
+
+    with pytest.raises(ApprovalNotExecutable):
+        approvals.mark_executed(
+            record.approval_id,
+            result_status=ExecutionStatus.COMPLETED,
+        )
 
 
 def test_executor_uses_stored_approved_request_payload(tmp_path: Path) -> None:
@@ -209,9 +229,22 @@ def test_executor_uses_stored_approved_request_payload(tmp_path: Path) -> None:
         expected_request_id=request.request_id,
     )
 
-    stored_request = approvals.get_executable_request(record.approval_id)
-    result = ToolExecutor(workspace(tmp_path)).execute(stored_request)
+    claimed = approvals.claim_for_execution(record.approval_id)
+    result = ToolExecutor(workspace(tmp_path)).execute(
+        claimed.request,
+        authorized=True,
+    )
     target = tmp_path / "examples" / "workspace" / "private" / "draft_note.txt"
 
     assert result.result_status == "completed"
     assert target.read_text(encoding="utf-8") == "approved synthetic content"
+
+
+def test_executor_denies_direct_unauthorized_execution(tmp_path: Path) -> None:
+    request = approval_request(tmp_path)
+    target = tmp_path / "examples" / "workspace" / "private" / "draft_note.txt"
+
+    result = ToolExecutor(workspace(tmp_path)).execute(request)
+
+    assert result.result_status == "denied"
+    assert target.exists() is False
