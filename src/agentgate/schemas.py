@@ -58,4 +58,4 @@ class Decision(BaseModel):
     risk: RiskLevel
     reason: str
     matched_rule: str
-
+    approval_id: str | None = None

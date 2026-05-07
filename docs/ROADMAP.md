@@ -7,7 +7,7 @@ Roadmap entries must not imply shipped functionality. Use `Planned`,
 
 ## Phase 0: Context and Scaffolding
 
-Status: In progress
+Status: Implemented
 
 Goals:
 
@@ -24,7 +24,7 @@ Exit criteria:
 
 ## Phase 1: Core Policy Gateway
 
-Status: Planned
+Status: Implemented
 
 Goals:
 
@@ -46,7 +46,17 @@ Exit criteria:
 
 ## Phase 2: Approval Queue
 
-Status: Planned
+Status: Implemented
+
+Implemented notes:
+
+- Approval-required requests are stored in a local SQLite queue.
+- CLI commands can list, approve, reject, and execute approved requests.
+- Approved execution uses the exact stored request payload.
+- JSONL audit events record policy decisions, approval creation, approval
+  decisions, and execution results.
+- The local executor supports file read/write-style requests only. Shell and
+  delete execution remain denied or unimplemented.
 
 Goals:
 
@@ -125,4 +135,3 @@ Exit criteria:
 - Should the CLI be the only interface until Phase 3?
 - Should the approval store start as SQLite or JSON files?
 - Which adapter gives the clearest portfolio signal first?
-

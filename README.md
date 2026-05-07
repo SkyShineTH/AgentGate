@@ -19,7 +19,7 @@ allowed, denied, or requires human approval before execution.
 - [Framework references](docs/FRAMEWORK_REFERENCES.md)
 - [Glossary](docs/GLOSSARY.md)
 
-## Phase 1 CLI
+## CLI
 
 AgentGate can evaluate a structured tool request without any provider SDK:
 
@@ -31,7 +31,20 @@ agentgate check examples/requests/read_public_file.json
 The command prints a JSON policy decision with `status`, `risk`, `reason`,
 `matched_rule`, and `request_id`.
 
-Run the Phase 1 tests with:
+Approval-required decisions are stored in a local SQLite queue under
+`.agentgate/` by default:
+
+```bash
+agentgate approvals list
+agentgate approvals approve <approval-id> --request-id <request-id>
+agentgate approvals reject <approval-id> --request-id <request-id>
+agentgate approvals execute <approval-id>
+```
+
+Approved execution uses the exact stored request payload. Shell execution and
+delete execution are not implemented by the local executor.
+
+Run the tests with:
 
 ```bash
 python -m pytest

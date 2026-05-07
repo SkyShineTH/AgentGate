@@ -206,6 +206,9 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# AgentGate local runtime state
+.agentgate/
+
 # PyPI configuration file
 .pypirc
 
