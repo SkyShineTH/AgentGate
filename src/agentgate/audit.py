@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -10,17 +9,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from agentgate.schemas import Decision, ToolRequest
-
-
-SECRET_KEY_RE = re.compile(
-    r"(api[_-]?key|access[_-]?token|auth[_-]?token|bearer|client[_-]?secret|"
-    r"password|passwd|private[_-]?key|secret)",
-    re.IGNORECASE,
-)
-SECRET_VALUE_RE = re.compile(
-    r"(-----BEGIN [A-Z ]*PRIVATE KEY-----|sk-[A-Za-z0-9_-]{12,}|"
-    r"xox[baprs]-[A-Za-z0-9-]{10,})"
-)
+from agentgate.secrets import redact
 
 
 def _now_utc() -> datetime:
@@ -97,25 +86,6 @@ class AuditLog:
         return "req_unknown"
 
 
-def redact(value: Any) -> Any:
-    if isinstance(value, dict):
-        redacted: dict[str, Any] = {}
-        for key, nested in value.items():
-            if isinstance(key, str) and SECRET_KEY_RE.search(key):
-                redacted[key] = "[REDACTED]"
-            else:
-                redacted[key] = redact(nested)
-        return redacted
-
-    if isinstance(value, list):
-        return [redact(item) for item in value]
-
-    if isinstance(value, str) and SECRET_VALUE_RE.search(value):
-        return "[REDACTED]"
-
-    return value
-
-
 def load_json_lines(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -124,4 +94,3 @@ def load_json_lines(path: Path) -> list[dict[str, Any]]:
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-

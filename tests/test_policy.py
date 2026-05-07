@@ -130,6 +130,20 @@ def test_likely_secret_denied(tmp_path: Path) -> None:
     assert decision.matched_rule == "secret_input_denied"
 
 
+def test_authorization_header_secret_denied(tmp_path: Path) -> None:
+    decision = engine(tmp_path).evaluate(
+        request(
+            tool="file.write",
+            action="write",
+            input={"headers": {"Authorization": "Bearer synthetic-token-value"}},
+        )
+    )
+
+    assert decision.status == DecisionStatus.DENY
+    assert decision.risk == RiskLevel.CRITICAL
+    assert decision.matched_rule == "secret_input_denied"
+
+
 def test_malformed_request_denied(tmp_path: Path) -> None:
     malformed = request()
     malformed.pop("actor")
@@ -139,4 +153,3 @@ def test_malformed_request_denied(tmp_path: Path) -> None:
     assert decision.status == DecisionStatus.DENY
     assert decision.matched_rule == "malformed_request_denied"
     assert decision.request_id == "req_test"
-

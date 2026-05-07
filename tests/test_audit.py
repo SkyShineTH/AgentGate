@@ -62,6 +62,8 @@ def test_audit_redacts_likely_secrets() -> None:
         "password": "not-for-logs",
         "nested": {"api_key": "not-for-logs"},
         "token_value": "sk-abcdefghijklmnopqrstuvwxyz",
+        "headers": {"Authorization": "Bearer synthetic-token-value"},
+        "Cookie": "sessionid=synthetic-session",
     }
 
     redacted = redact(payload)
@@ -69,4 +71,29 @@ def test_audit_redacts_likely_secrets() -> None:
     assert redacted["password"] == "[REDACTED]"
     assert redacted["nested"]["api_key"] == "[REDACTED]"
     assert redacted["token_value"] == "[REDACTED]"
+    assert redacted["headers"]["Authorization"] == "[REDACTED]"
+    assert redacted["Cookie"] == "[REDACTED]"
 
+
+def test_audit_record_redacts_request_payload_secrets(tmp_path: Path) -> None:
+    log_path = tmp_path / "audit.jsonl"
+    AuditLog(log_path).record(
+        event_type="policy_decision",
+        request=request(),
+        decision=decision(),
+        payload={
+            "request": {
+                "input": {
+                    "headers": {"Authorization": "Bearer synthetic-token-value"},
+                    "session": "synthetic-session",
+                }
+            }
+        },
+    )
+
+    line = load_json_lines(log_path)[0]
+
+    assert line["payload"]["request"]["input"]["headers"]["Authorization"] == (
+        "[REDACTED]"
+    )
+    assert line["payload"]["request"]["input"]["session"] == "[REDACTED]"

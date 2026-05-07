@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from typing import Any
 
 from pydantic import ValidationError
 
 from agentgate.schemas import Decision, DecisionStatus, RiskLevel, ToolRequest
+from agentgate.secrets import contains_likely_secret
 from agentgate.workspace import WorkspaceBoundary, WorkspaceKind
 
 
@@ -20,16 +20,6 @@ SUPPORTED_ACTIONS: dict[str, set[str]] = {
 }
 
 WRITE_TOOLS = {"file.write", "file.append", "file.update"}
-
-SECRET_KEY_RE = re.compile(
-    r"(api[_-]?key|access[_-]?token|auth[_-]?token|bearer|client[_-]?secret|"
-    r"password|passwd|private[_-]?key|secret)",
-    re.IGNORECASE,
-)
-SECRET_VALUE_RE = re.compile(
-    r"(-----BEGIN [A-Z ]*PRIVATE KEY-----|sk-[A-Za-z0-9_-]{12,}|"
-    r"xox[baprs]-[A-Za-z0-9-]{10,})"
-)
 
 
 class PolicyEngine:
@@ -45,7 +35,7 @@ class PolicyEngine:
         if isinstance(request, Decision):
             return request
 
-        if self._contains_likely_secret(request.input):
+        if contains_likely_secret(request.input):
             return self._decision(
                 request,
                 status=DecisionStatus.DENY,
@@ -182,22 +172,4 @@ class PolicyEngine:
             reason=reason,
             matched_rule=matched_rule,
         )
-
-    @classmethod
-    def _contains_likely_secret(cls, value: Any) -> bool:
-        if isinstance(value, Mapping):
-            for key, nested in value.items():
-                if isinstance(key, str) and SECRET_KEY_RE.search(key):
-                    return True
-                if cls._contains_likely_secret(nested):
-                    return True
-            return False
-
-        if isinstance(value, list | tuple | set):
-            return any(cls._contains_likely_secret(item) for item in value)
-
-        if isinstance(value, str):
-            return bool(SECRET_VALUE_RE.search(value))
-
-        return False
 
