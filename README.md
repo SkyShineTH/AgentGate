@@ -100,6 +100,9 @@ CLI or adapter
 See [Architecture](docs/ARCHITECTURE.md) and
 [Architecture diagram](docs/ARCHITECTURE_DIAGRAM.md).
 
+For a complete local owner walkthrough, see
+[CLI owner workflow](docs/CLI_OWNER_WORKFLOW.md).
+
 ## Security Posture
 
 AgentGate is a permission gateway, not a sandbox. It enforces policy and
@@ -114,6 +117,7 @@ See [Security and privacy](docs/SECURITY_PRIVACY.md).
 - [Agent instructions](AGENTS.md)
 - [Project context](docs/PROJECT_CONTEXT.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [CLI owner workflow](docs/CLI_OWNER_WORKFLOW.md)
 - [Policy model](docs/POLICY_MODEL.md)
 - [Security and privacy](docs/SECURITY_PRIVACY.md)
 - [Testing and evals](docs/TESTING_EVALS.md)
