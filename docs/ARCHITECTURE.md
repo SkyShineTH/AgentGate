@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-05-07
+Last updated: 2026-05-09
 
 ## Architecture Goal
 
@@ -34,6 +34,7 @@ Request Normalizer
   |
   v
 Policy Engine
+  - Looks up known tools and supported actions in ToolRegistry.
   - Evaluates deterministic rules.
   - Returns allow, deny, or require_approval.
   - Provides reason, risk, and matched rule.
@@ -47,7 +48,8 @@ Policy Engine
   |
   +--> Tool Dispatcher
          - Executes only allowed or approved requests.
-         - Calls registered tools through stable interfaces.
+         - Checks ToolRegistry before execution.
+         - Calls implemented tools through stable interfaces.
          - Returns execution result.
 
 Every stage writes to Audit Log with redaction.
@@ -86,6 +88,7 @@ Responsibilities:
 
 Responsibilities:
 
+- Use `ToolRegistry` to fail closed on unknown tools and unsupported actions.
 - Evaluate rules against normalized structured facts.
 - Avoid natural-language intent as the only policy input.
 - Return typed decisions.
@@ -109,11 +112,27 @@ Responsibilities:
   and resource types.
 - Keep execution handlers separate from policy definitions.
 
-### ToolDispatcher
+Current implementation:
+
+- Lives in `src/agentgate/registry.py`.
+- Defines `ToolDefinition` and `ToolRegistry`.
+- Provides the default tool catalog for `file.read`, `file.write`,
+  `file.append`, `file.update`, `file.delete`, and `shell.execute`.
+- Acts as the source of truth for known tool names and supported actions.
+- Can be injected into `PolicyEngine` and `ToolExecutor` for tests or future
+  custom tool catalogs.
+
+The registry is metadata only. It does not grant permission by itself and does
+not execute tools. Policy still decides `allow`, `deny`, or `require_approval`,
+and `ToolExecutor` only implements the local file operations that are safe for
+the current demo.
+
+### ToolExecutor
 
 Responsibilities:
 
 - Execute only requests that have an `allow` decision or a valid approval.
+- Check that the requested tool and action exist in `ToolRegistry`.
 - Return structured results.
 - Avoid logging raw sensitive outputs.
 
