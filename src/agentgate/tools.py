@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from agentgate.policy import WRITE_TOOLS
+from agentgate.registry import ToolRegistry, WRITE_TOOLS
 from agentgate.schemas import ToolRequest
 from agentgate.workspace import WorkspaceBoundary
 
@@ -22,8 +22,13 @@ class ExecutionResult(BaseModel):
 
 
 class ToolExecutor:
-    def __init__(self, workspace: WorkspaceBoundary | None = None) -> None:
+    def __init__(
+        self,
+        workspace: WorkspaceBoundary | None = None,
+        registry: ToolRegistry | None = None,
+    ) -> None:
         self.workspace = workspace or WorkspaceBoundary.default()
+        self.registry = registry or ToolRegistry.default()
 
     @classmethod
     def default(cls) -> "ToolExecutor":
@@ -35,6 +40,14 @@ class ToolExecutor:
                 request,
                 result_status="denied",
                 message="Tool execution requires an allow decision or approved request.",
+            )
+
+        tool = self.registry.get(request.tool)
+        if tool is None or not tool.supports_action(request.action):
+            return self._result(
+                request,
+                result_status="denied",
+                message="No executor is registered for this tool.",
             )
 
         if request.tool == "shell.execute":

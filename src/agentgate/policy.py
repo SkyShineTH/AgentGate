@@ -5,26 +5,20 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from agentgate.registry import ToolRegistry, WRITE_TOOLS
 from agentgate.schemas import Decision, DecisionStatus, RiskLevel, ToolRequest
 from agentgate.secrets import contains_likely_secret
 from agentgate.workspace import WorkspaceBoundary, WorkspaceKind
 
 
-SUPPORTED_ACTIONS: dict[str, set[str]] = {
-    "file.read": {"read"},
-    "file.write": {"write", "create"},
-    "file.append": {"append"},
-    "file.update": {"update"},
-    "file.delete": {"delete"},
-    "shell.execute": {"execute"},
-}
-
-WRITE_TOOLS = {"file.write", "file.append", "file.update"}
-
-
 class PolicyEngine:
-    def __init__(self, workspace: WorkspaceBoundary | None = None) -> None:
+    def __init__(
+        self,
+        workspace: WorkspaceBoundary | None = None,
+        registry: ToolRegistry | None = None,
+    ) -> None:
         self.workspace = workspace or WorkspaceBoundary.default()
+        self.registry = registry or ToolRegistry.default()
 
     @classmethod
     def default(cls) -> "PolicyEngine":
@@ -44,7 +38,8 @@ class PolicyEngine:
                 matched_rule="secret_input_denied",
             )
 
-        if request.tool not in SUPPORTED_ACTIONS:
+        tool = self.registry.get(request.tool)
+        if tool is None:
             return self._decision(
                 request,
                 status=DecisionStatus.DENY,
@@ -53,7 +48,7 @@ class PolicyEngine:
                 matched_rule="unknown_tool_denied",
             )
 
-        if request.action not in SUPPORTED_ACTIONS[request.tool]:
+        if not tool.supports_action(request.action):
             return self._decision(
                 request,
                 status=DecisionStatus.DENY,
@@ -172,4 +167,3 @@ class PolicyEngine:
             reason=reason,
             matched_rule=matched_rule,
         )
-
