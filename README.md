@@ -67,13 +67,17 @@ Approval-required decisions are stored in a local SQLite queue under
 
 ```bash
 agentgate approvals list
+agentgate approvals edit <approval-id> <edited-request-json> --request-id <request-id>
 agentgate approvals approve <approval-id> --request-id <request-id>
 agentgate approvals reject <approval-id> --request-id <request-id>
 agentgate approvals execute <approval-id>
 ```
 
-Approved execution uses the exact stored request payload. Shell execution and
-delete execution are not implemented by the local executor.
+An edit replaces the pending approval payload only after the edited request is
+validated and re-evaluated by policy. The edited request must keep the same
+`request_id` and must still return `require_approval`. Approved execution uses
+the exact stored request payload. Shell execution and delete execution are not
+implemented by the local executor.
 
 ## Optional Adapters
 

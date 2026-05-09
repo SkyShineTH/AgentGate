@@ -155,6 +155,45 @@ class ApprovalQueue:
             expected_request_id=expected_request_id,
         )
 
+    def edit_pending(
+        self,
+        approval_id: str,
+        edited_request: ToolRequest,
+        edited_decision: Decision,
+        *,
+        editor: str,
+        expected_request_id: str,
+        reason: str | None = None,
+    ) -> ApprovalRecord:
+        if edited_decision.status != DecisionStatus.REQUIRE_APPROVAL:
+            raise ApprovalConflict("Edited requests must still require approval.")
+
+        record = self.get(approval_id)
+        if record.request_id != expected_request_id:
+            raise ApprovalConflict("Approval request_id does not match expected value.")
+        if edited_request.request_id != expected_request_id:
+            raise ApprovalConflict("Edited request_id must match the pending approval.")
+        if record.status != ApprovalStatus.PENDING:
+            raise ApprovalConflict("Only pending approvals can be edited.")
+        if record.execution_status != ExecutionStatus.NOT_EXECUTED:
+            raise ApprovalConflict("Executed approvals cannot be edited.")
+
+        queued_decision = edited_decision.model_copy(update={"approval_id": approval_id})
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE approvals
+                SET request_json = ?, decision_json = ?
+                WHERE approval_id = ?
+                """,
+                (
+                    edited_request.model_dump_json(),
+                    queued_decision.model_dump_json(),
+                    approval_id,
+                ),
+            )
+        return self.get(approval_id)
+
     def get_executable_request(self, approval_id: str) -> ToolRequest:
         return self.claim_for_execution(approval_id).request
 

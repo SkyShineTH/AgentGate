@@ -110,6 +110,68 @@ def list_approvals(
 
 
 @approvals_app.command()
+def edit(
+    approval_id: str,
+    request_json: Path,
+    editor: str = typer.Option("human", "--editor", help="Editor name."),
+    reason: str | None = typer.Option(None, "--reason", help="Edit reason."),
+    request_id: str = typer.Option(
+        ...,
+        "--request-id",
+        help="Expected request_id guard.",
+    ),
+    approval_db: Path = typer.Option(
+        DEFAULT_APPROVAL_DB,
+        "--approval-db",
+        help="SQLite approval queue path.",
+    ),
+    audit_log: Path = typer.Option(
+        DEFAULT_AUDIT_LOG,
+        "--audit-log",
+        help="JSONL audit log path.",
+    ),
+) -> None:
+    """Replace a pending approval payload with an edited request."""
+    try:
+        payload = _load_json(request_json)
+        edited_request = ToolRequest.model_validate(payload)
+    except (ValueError, ValidationError) as exc:
+        _fail(f"Invalid edited request: {exc}")
+
+    if edited_request.request_id != request_id:
+        _fail("Edited request_id must match --request-id.")
+
+    edited_decision = PolicyEngine.default().evaluate(edited_request)
+    if edited_decision.status != DecisionStatus.REQUIRE_APPROVAL:
+        _fail("Edited request must evaluate to require_approval.")
+
+    try:
+        record = ApprovalQueue(approval_db).edit_pending(
+            approval_id,
+            edited_request,
+            edited_decision,
+            editor=editor,
+            reason=reason,
+            expected_request_id=request_id,
+        )
+    except (ApprovalConflict, ApprovalNotFound) as exc:
+        _fail(str(exc))
+
+    AuditLog(audit_log).record(
+        event_type="approval_edited",
+        request=record.request,
+        decision=record.decision,
+        approval_id=record.approval_id,
+        payload={
+            "edited_by": editor,
+            "edit_reason": reason,
+            "request": record.request.model_dump(mode="json"),
+        },
+    )
+    _echo_json(record)
+
+
+@approvals_app.command()
 def approve(
     approval_id: str,
     approver: str = typer.Option("human", "--approver", help="Approver name."),

@@ -16,7 +16,7 @@ flowchart TD
     deny[deny]
     approval[require_approval]
     queue[ApprovalQueue]
-    human[Human approve or reject]
+    human[Human approve, edit, or reject]
     executor[ToolExecutor]
     audit[AuditLog]
 
@@ -47,8 +47,9 @@ flowchart TD
 4. Allowed requests can execute through the local executor.
 5. Approval-required requests are stored in SQLite and tied to the exact
    request payload.
-6. A human can approve or reject the stored request.
-7. Approved execution uses the stored request and records a JSONL audit event.
+6. A human can approve, edit, or reject the stored request.
+7. Edited requests are validated and re-evaluated before approval.
+8. Approved execution uses the stored request and records a JSONL audit event.
 
 ## Current Scope
 

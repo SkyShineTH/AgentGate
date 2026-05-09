@@ -100,8 +100,10 @@ Responsibilities:
 
 - Store pending approvals.
 - Preserve the exact original request payload.
-- Allow approve, reject, and later edit flows.
+- Allow approve, reject, and edit flows.
 - Prevent executing stale or mutated requests accidentally.
+- Re-evaluate edited payloads before they can be approved.
+- Execute only the currently stored approved payload.
 
 ### ToolRegistry
 
@@ -188,7 +190,5 @@ tool silently.
 ## Open Questions
 
 - Should the first audit store be JSONL only, SQLite only, or both?
-- Should `require_approval` support request edits in the first release or only
-  approve/reject?
 - Should policy be expressed as Python rules first or YAML rules first?
 - Should shell execution exist in the MVP as denied examples only?

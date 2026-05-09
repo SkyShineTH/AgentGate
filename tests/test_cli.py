@@ -97,3 +97,60 @@ def test_cli_approve_and_reject_use_request_id_guard(tmp_path: Path) -> None:
     assert approved.exit_code == 0, approved.output
     assert json.loads(approved.output)["status"] == "approved"
 
+
+def test_cli_edit_updates_pending_approval_payload_and_audit(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "approvals.sqlite"
+    audit_path = tmp_path / "audit.jsonl"
+    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    check = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    approval_id = json.loads(check.output)["approval_id"]
+    edited_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    edited_payload["input"] = {"content": "edited synthetic content"}
+    edited_path = tmp_path / "edited_request.json"
+    edited_path.write_text(json.dumps(edited_payload), encoding="utf-8")
+
+    edited = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "edit",
+            approval_id,
+            str(edited_path),
+            "--request-id",
+            "req_write_private_note",
+            "--editor",
+            "human-reviewer",
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+
+    assert edited.exit_code == 0, edited.output
+    output = json.loads(edited.output)
+    assert output["request"]["input"] == {"content": "edited synthetic content"}
+
+    record = ApprovalQueue(db_path).get(approval_id)
+    assert record.status == ApprovalStatus.PENDING
+    assert record.request.input == {"content": "edited synthetic content"}
+
+    events = load_json_lines(audit_path)
+    assert [event["event_type"] for event in events] == [
+        "policy_decision",
+        "approval_created",
+        "approval_edited",
+    ]
+    assert events[-1]["payload"]["edited_by"] == "human-reviewer"

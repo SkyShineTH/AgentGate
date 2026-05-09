@@ -174,6 +174,111 @@ def test_request_id_guard_blocks_mismatched_approval(tmp_path: Path) -> None:
         )
 
 
+def test_edit_pending_replaces_request_payload(tmp_path: Path) -> None:
+    approvals = queue(tmp_path)
+    request = approval_request(tmp_path)
+    record = approvals.create_pending(request, approval_decision(request))
+    edited = approval_request(tmp_path, input={"content": "edited synthetic content"})
+
+    updated = approvals.edit_pending(
+        record.approval_id,
+        edited,
+        approval_decision(edited),
+        editor="human-reviewer",
+        reason="Narrowed the approved content.",
+        expected_request_id=request.request_id,
+    )
+
+    assert updated.status == ApprovalStatus.PENDING
+    assert updated.request.input == {"content": "edited synthetic content"}
+    assert updated.decision.approval_id == record.approval_id
+
+
+def test_edit_pending_rejects_changed_request_id(tmp_path: Path) -> None:
+    approvals = queue(tmp_path)
+    request = approval_request(tmp_path)
+    record = approvals.create_pending(request, approval_decision(request))
+    edited = approval_request(
+        tmp_path,
+        request_id="req_different",
+        input={"content": "edited synthetic content"},
+    )
+
+    with pytest.raises(ApprovalConflict):
+        approvals.edit_pending(
+            record.approval_id,
+            edited,
+            approval_decision(edited),
+            editor="human-reviewer",
+            expected_request_id=request.request_id,
+        )
+
+
+def test_edit_pending_rejects_non_approval_decision(tmp_path: Path) -> None:
+    approvals = queue(tmp_path)
+    request = approval_request(tmp_path)
+    record = approvals.create_pending(request, approval_decision(request))
+
+    with pytest.raises(ApprovalConflict):
+        approvals.edit_pending(
+            record.approval_id,
+            request,
+            deny_decision(request),
+            editor="human-reviewer",
+            expected_request_id=request.request_id,
+        )
+
+
+def test_decided_approval_cannot_be_edited(tmp_path: Path) -> None:
+    approvals = queue(tmp_path)
+    request = approval_request(tmp_path)
+    record = approvals.create_pending(request, approval_decision(request))
+    approvals.approve(
+        record.approval_id,
+        approver="human-reviewer",
+        expected_request_id=request.request_id,
+    )
+    edited = approval_request(tmp_path, input={"content": "edited synthetic content"})
+
+    with pytest.raises(ApprovalConflict):
+        approvals.edit_pending(
+            record.approval_id,
+            edited,
+            approval_decision(edited),
+            editor="human-reviewer",
+            expected_request_id=request.request_id,
+        )
+
+
+def test_executor_uses_edited_approved_request_payload(tmp_path: Path) -> None:
+    approvals = queue(tmp_path)
+    request = approval_request(tmp_path)
+    record = approvals.create_pending(request, approval_decision(request))
+    edited = approval_request(tmp_path, input={"content": "edited synthetic content"})
+    approvals.edit_pending(
+        record.approval_id,
+        edited,
+        approval_decision(edited),
+        editor="human-reviewer",
+        expected_request_id=request.request_id,
+    )
+    approvals.approve(
+        record.approval_id,
+        approver="human-reviewer",
+        expected_request_id=request.request_id,
+    )
+
+    claimed = approvals.claim_for_execution(record.approval_id)
+    result = ToolExecutor(workspace(tmp_path)).execute(
+        claimed.request,
+        authorized=True,
+    )
+    target = tmp_path / "examples" / "workspace" / "private" / "draft_note.txt"
+
+    assert result.result_status == "completed"
+    assert target.read_text(encoding="utf-8") == "edited synthetic content"
+
+
 def test_only_approved_requests_are_executable_once(tmp_path: Path) -> None:
     approvals = queue(tmp_path)
     request = approval_request(tmp_path)

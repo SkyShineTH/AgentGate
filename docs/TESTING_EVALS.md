@@ -57,6 +57,8 @@ Required cases:
 Required cases:
 
 - pending approval is created for approval-required requests
+- pending approval can be edited only with the same request ID
+- edited approval payloads are re-evaluated before approval
 - approved request can execute once
 - rejected request cannot execute
 - edited request records both original and edited payloads
@@ -115,4 +117,3 @@ A behavior change is done when:
 - docs or examples are updated
 - audit behavior is considered
 - privacy/logging impact is considered
-
