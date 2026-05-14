@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from agentgate.registry import ToolRegistry, WRITE_TOOLS
+from agentgate.registry import ToolRegistry
 from agentgate.schemas import ToolRequest
 from agentgate.workspace import WorkspaceBoundary
 
@@ -75,7 +75,7 @@ class ToolExecutor:
         if request.tool == "file.read":
             return self._read(request, boundary.normalized_path)
 
-        if request.tool in WRITE_TOOLS:
+        if tool.has_side_effects and tool.executable:
             return self._write(request, boundary.normalized_path)
 
         return self._result(

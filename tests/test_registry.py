@@ -4,7 +4,8 @@ from pathlib import Path
 
 from agentgate.policy import PolicyEngine
 from agentgate.registry import ToolDefinition, ToolRegistry, WRITE_TOOLS
-from agentgate.schemas import DecisionStatus, RiskLevel
+from agentgate.schemas import DecisionStatus, RiskLevel, ToolRequest
+from agentgate.tools import ToolExecutor
 from agentgate.workspace import WorkspaceBoundary
 
 
@@ -71,3 +72,86 @@ def test_policy_uses_registry_supported_actions(tmp_path: Path) -> None:
 
     assert decision.status == DecisionStatus.DENY
     assert decision.matched_rule == "unknown_action_denied"
+
+
+def test_policy_uses_injected_registry_for_side_effects(tmp_path: Path) -> None:
+    registry = ToolRegistry(
+        [
+            ToolDefinition(
+                name="file.write",
+                actions=frozenset({"write"}),
+                default_risk=RiskLevel.LOW,
+                has_side_effects=False,
+            )
+        ]
+    )
+    decision = PolicyEngine(workspace(tmp_path), registry=registry).evaluate(
+        request(
+            tool="file.write",
+            action="write",
+            resource="examples/workspace/private/note.txt",
+            input={"content": "synthetic note"},
+        )
+    )
+
+    assert decision.status == DecisionStatus.DENY
+    assert decision.matched_rule == "default_deny"
+
+
+def test_executor_uses_injected_registry_for_side_effects(tmp_path: Path) -> None:
+    registry = ToolRegistry(
+        [
+            ToolDefinition(
+                name="file.write",
+                actions=frozenset({"write"}),
+                default_risk=RiskLevel.LOW,
+                has_side_effects=False,
+                executable=True,
+            )
+        ]
+    )
+    executor = ToolExecutor(workspace(tmp_path), registry=registry)
+    tool_request = ToolRequest.model_validate(
+        request(
+            tool="file.write",
+            action="write",
+            resource="examples/workspace/private/note.txt",
+            input={"content": "synthetic note"},
+        )
+    )
+
+    result = executor.execute(tool_request, authorized=True)
+
+    assert result.result_status == "denied"
+    assert result.message == "No executor is registered for this tool."
+    assert not (tmp_path / "examples" / "workspace" / "private" / "note.txt").exists()
+
+
+def test_executor_allows_custom_registered_side_effect_tool(tmp_path: Path) -> None:
+    registry = ToolRegistry(
+        [
+            ToolDefinition(
+                name="file.redact",
+                actions=frozenset({"write"}),
+                default_risk=RiskLevel.MEDIUM,
+                has_side_effects=True,
+                executable=True,
+            )
+        ]
+    )
+    executor = ToolExecutor(workspace(tmp_path), registry=registry)
+    tool_request = ToolRequest.model_validate(
+        request(
+            tool="file.redact",
+            action="write",
+            resource="examples/workspace/private/redacted.txt",
+            input={"content": "redacted synthetic note"},
+        )
+    )
+
+    result = executor.execute(tool_request, authorized=True)
+
+    assert result.result_status == "completed"
+    assert (
+        tmp_path / "examples" / "workspace" / "private" / "redacted.txt"
+    ).read_text(encoding="utf-8") == "redacted synthetic note"

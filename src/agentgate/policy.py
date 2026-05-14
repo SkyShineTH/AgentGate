@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from agentgate.registry import ToolRegistry, WRITE_TOOLS
+from agentgate.registry import ToolRegistry
 from agentgate.schemas import Decision, DecisionStatus, RiskLevel, ToolRequest
 from agentgate.secrets import contains_likely_secret
 from agentgate.workspace import WorkspaceBoundary, WorkspaceKind
@@ -91,7 +91,7 @@ class PolicyEngine:
                 matched_rule="delete_denied",
             )
 
-        if request.tool in WRITE_TOOLS:
+        if tool.has_side_effects:
             return self._decision(
                 request,
                 status=DecisionStatus.REQUIRE_APPROVAL,
