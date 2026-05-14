@@ -110,6 +110,9 @@ agentgate approvals edit <approval-id> <edited-request-json> --request-id <reque
 
 AgentGate validates the edited request and runs policy again. The edit is
 accepted only when the edited request still evaluates to `require_approval`.
+The approval row is updated to the latest payload, and an `approval_edits`
+SQLite row records the previous and edited request/decision payloads with the
+editor and reason.
 
 This is intentional: editing must not turn a pending approval into a silent
 allow or a denied action.
@@ -140,8 +143,8 @@ agentgate approvals execute <approval-id>
 ```
 
 Execution uses the exact request payload currently stored in the approval
-record. If the approval was edited before approval, the edited payload is what
-executes.
+record. If the approval was edited before approval, the latest edited payload is
+what executes, while prior revisions remain inspectable in `approval_edits`.
 
 Approved requests are claimed atomically and can execute only once.
 

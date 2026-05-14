@@ -103,6 +103,7 @@ Responsibilities:
 - Allow approve, reject, and edit flows.
 - Prevent executing stale or mutated requests accidentally.
 - Re-evaluate edited payloads before they can be approved.
+- Store edit history with previous and edited request/decision payloads.
 - Execute only the currently stored approved payload.
 
 ### ToolRegistry

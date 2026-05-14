@@ -61,7 +61,7 @@ Required cases:
 - edited approval payloads are re-evaluated before approval
 - approved request can execute once
 - rejected request cannot execute
-- edited request records both original and edited payloads
+- edited request records both original and edited payloads in approval storage
 - approval cannot be applied to a different request ID
 
 ### Audit Tests

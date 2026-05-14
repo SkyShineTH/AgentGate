@@ -75,9 +75,11 @@ agentgate approvals execute <approval-id>
 
 An edit replaces the pending approval payload only after the edited request is
 validated and re-evaluated by policy. The edited request must keep the same
-`request_id` and must still return `require_approval`. Approved execution uses
-the exact stored request payload. Shell execution and delete execution are not
-implemented by the local executor.
+`request_id` and must still return `require_approval`. Each edit also writes an
+`approval_edits` SQLite record with the previous and edited request/decision
+payloads, so the approval database preserves the lifecycle. Approved execution
+uses the exact current stored request payload. Shell execution and delete
+execution are not implemented by the local executor.
 
 ## Optional Adapters
 
