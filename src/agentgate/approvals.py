@@ -167,6 +167,8 @@ class ApprovalQueue:
     ) -> ApprovalRecord:
         if edited_decision.status != DecisionStatus.REQUIRE_APPROVAL:
             raise ApprovalConflict("Edited requests must still require approval.")
+        if edited_decision.request_id != edited_request.request_id:
+            raise ApprovalConflict("Edited decision must match the edited request_id.")
 
         record = self.get(approval_id)
         if record.request_id != expected_request_id:

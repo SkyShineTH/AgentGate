@@ -214,6 +214,25 @@ def test_edit_pending_rejects_changed_request_id(tmp_path: Path) -> None:
         )
 
 
+def test_edit_pending_rejects_decision_for_different_request_id(
+    tmp_path: Path,
+) -> None:
+    approvals = queue(tmp_path)
+    request = approval_request(tmp_path)
+    record = approvals.create_pending(request, approval_decision(request))
+    edited = approval_request(tmp_path, input={"content": "edited synthetic content"})
+    other_request = approval_request(tmp_path, request_id="req_other")
+
+    with pytest.raises(ApprovalConflict):
+        approvals.edit_pending(
+            record.approval_id,
+            edited,
+            approval_decision(other_request),
+            editor="human-reviewer",
+            expected_request_id=request.request_id,
+        )
+
+
 def test_edit_pending_rejects_non_approval_decision(tmp_path: Path) -> None:
     approvals = queue(tmp_path)
     request = approval_request(tmp_path)
