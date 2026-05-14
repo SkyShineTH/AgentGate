@@ -45,6 +45,21 @@ class ApprovalRecord(BaseModel):
     executed_at: datetime | None = None
 
 
+class ApprovalEditRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    edit_id: str = Field(default_factory=lambda: f"apedit_{uuid4().hex}")
+    approval_id: str
+    request_id: str
+    previous_request: ToolRequest
+    previous_decision: Decision
+    edited_request: ToolRequest
+    edited_decision: Decision
+    edited_at: datetime = Field(default_factory=_now_utc)
+    edited_by: str
+    edit_reason: str | None = None
+
+
 class ApprovalQueueError(Exception):
     pass
 
@@ -123,6 +138,18 @@ class ApprovalQueue:
             ).fetchone()
         return self._row_to_record(row) if row else None
 
+    def list_edits(self, approval_id: str) -> list[ApprovalEditRecord]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM approval_edits
+                WHERE approval_id = ?
+                ORDER BY edited_at ASC
+                """,
+                (approval_id,),
+            ).fetchall()
+        return [self._row_to_edit_record(row) for row in rows]
+
     def approve(
         self,
         approval_id: str,
@@ -181,7 +208,46 @@ class ApprovalQueue:
             raise ApprovalConflict("Executed approvals cannot be edited.")
 
         queued_decision = edited_decision.model_copy(update={"approval_id": approval_id})
+        edit_record = ApprovalEditRecord(
+            approval_id=approval_id,
+            request_id=record.request_id,
+            previous_request=record.request,
+            previous_decision=record.decision,
+            edited_request=edited_request,
+            edited_decision=queued_decision,
+            edited_by=editor,
+            edit_reason=reason,
+        )
         with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO approval_edits (
+                    edit_id,
+                    approval_id,
+                    request_id,
+                    previous_request_json,
+                    previous_decision_json,
+                    edited_request_json,
+                    edited_decision_json,
+                    edited_at,
+                    edited_by,
+                    edit_reason
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    edit_record.edit_id,
+                    edit_record.approval_id,
+                    edit_record.request_id,
+                    edit_record.previous_request.model_dump_json(),
+                    edit_record.previous_decision.model_dump_json(),
+                    edit_record.edited_request.model_dump_json(),
+                    edit_record.edited_decision.model_dump_json(),
+                    edit_record.edited_at.isoformat(),
+                    edit_record.edited_by,
+                    edit_record.edit_reason,
+                ),
+            )
             conn.execute(
                 """
                 UPDATE approvals
@@ -341,6 +407,28 @@ class ApprovalQueue:
                 ON approvals(request_id)
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS approval_edits (
+                    edit_id TEXT PRIMARY KEY,
+                    approval_id TEXT NOT NULL,
+                    request_id TEXT NOT NULL,
+                    previous_request_json TEXT NOT NULL,
+                    previous_decision_json TEXT NOT NULL,
+                    edited_request_json TEXT NOT NULL,
+                    edited_decision_json TEXT NOT NULL,
+                    edited_at TEXT NOT NULL,
+                    edited_by TEXT NOT NULL,
+                    edit_reason TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_approval_edits_approval_id
+                ON approval_edits(approval_id, edited_at)
+                """
+            )
 
     @staticmethod
     def _row_to_record(row: sqlite3.Row) -> ApprovalRecord:
@@ -364,6 +452,25 @@ class ApprovalQueue:
                 if row["executed_at"]
                 else None
             ),
+        )
+
+    @staticmethod
+    def _row_to_edit_record(row: sqlite3.Row) -> ApprovalEditRecord:
+        return ApprovalEditRecord(
+            edit_id=row["edit_id"],
+            approval_id=row["approval_id"],
+            request_id=row["request_id"],
+            previous_request=ToolRequest.model_validate_json(
+                row["previous_request_json"]
+            ),
+            previous_decision=Decision.model_validate_json(
+                row["previous_decision_json"]
+            ),
+            edited_request=ToolRequest.model_validate_json(row["edited_request_json"]),
+            edited_decision=Decision.model_validate_json(row["edited_decision_json"]),
+            edited_at=datetime.fromisoformat(row["edited_at"]),
+            edited_by=row["edited_by"],
+            edit_reason=row["edit_reason"],
         )
 
     @staticmethod

@@ -194,6 +194,65 @@ def test_edit_pending_replaces_request_payload(tmp_path: Path) -> None:
     assert updated.decision.approval_id == record.approval_id
 
 
+def test_edit_pending_records_payload_history(tmp_path: Path) -> None:
+    approvals = queue(tmp_path)
+    request = approval_request(tmp_path)
+    record = approvals.create_pending(request, approval_decision(request))
+    edited = approval_request(tmp_path, input={"content": "edited synthetic content"})
+
+    approvals.edit_pending(
+        record.approval_id,
+        edited,
+        approval_decision(edited),
+        editor="human-reviewer",
+        reason="Narrowed the approved content.",
+        expected_request_id=request.request_id,
+    )
+
+    edits = approvals.list_edits(record.approval_id)
+
+    assert len(edits) == 1
+    assert edits[0].approval_id == record.approval_id
+    assert edits[0].request_id == request.request_id
+    assert edits[0].previous_request.input == {"content": "approved synthetic content"}
+    assert edits[0].edited_request.input == {"content": "edited synthetic content"}
+    assert edits[0].previous_decision.approval_id == record.approval_id
+    assert edits[0].edited_decision.approval_id == record.approval_id
+    assert edits[0].edited_by == "human-reviewer"
+    assert edits[0].edit_reason == "Narrowed the approved content."
+
+
+def test_edit_pending_records_each_payload_revision(tmp_path: Path) -> None:
+    approvals = queue(tmp_path)
+    request = approval_request(tmp_path)
+    record = approvals.create_pending(request, approval_decision(request))
+    first_edit = approval_request(tmp_path, input={"content": "first edit"})
+    second_edit = approval_request(tmp_path, input={"content": "second edit"})
+
+    approvals.edit_pending(
+        record.approval_id,
+        first_edit,
+        approval_decision(first_edit),
+        editor="human-reviewer",
+        expected_request_id=request.request_id,
+    )
+    approvals.edit_pending(
+        record.approval_id,
+        second_edit,
+        approval_decision(second_edit),
+        editor="human-reviewer",
+        expected_request_id=request.request_id,
+    )
+
+    edits = approvals.list_edits(record.approval_id)
+
+    assert len(edits) == 2
+    assert edits[0].previous_request.input == {"content": "approved synthetic content"}
+    assert edits[0].edited_request.input == {"content": "first edit"}
+    assert edits[1].previous_request.input == {"content": "first edit"}
+    assert edits[1].edited_request.input == {"content": "second edit"}
+
+
 def test_edit_pending_rejects_changed_request_id(tmp_path: Path) -> None:
     approvals = queue(tmp_path)
     request = approval_request(tmp_path)
