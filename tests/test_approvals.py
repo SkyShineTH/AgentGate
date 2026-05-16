@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from agentgate.approvals import (
+    APPROVAL_DB_SCHEMA_VERSION,
     ApprovalConflict,
     ApprovalNotExecutable,
     ApprovalQueue,
@@ -120,6 +121,12 @@ def test_approval_persists_after_reopening_database(tmp_path: Path) -> None:
     assert loaded.request.model_dump(mode="json") == request.model_dump(mode="json")
 
 
+def test_new_approval_database_records_schema_version(tmp_path: Path) -> None:
+    approvals = queue(tmp_path)
+
+    assert approvals.schema_version() == APPROVAL_DB_SCHEMA_VERSION
+
+
 def test_existing_approval_database_adds_edit_history_table(
     tmp_path: Path,
 ) -> None:
@@ -180,6 +187,7 @@ def test_existing_approval_database_adds_edit_history_table(
     approvals = ApprovalQueue(db_path)
     edited = approval_request(tmp_path, input={"content": "edited after migration"})
 
+    assert approvals.schema_version() == APPROVAL_DB_SCHEMA_VERSION
     assert approvals.get(approval_id).request_id == request.request_id
     assert approvals.list_edits(approval_id) == []
 

@@ -10,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agentgate.schemas import Decision, DecisionStatus, ToolRequest
 
+APPROVAL_DB_SCHEMA_VERSION = 2
+
 
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
@@ -149,6 +151,10 @@ class ApprovalQueue:
                 (approval_id,),
             ).fetchall()
         return [self._row_to_edit_record(row) for row in rows]
+
+    def schema_version(self) -> int:
+        with self._connect() as conn:
+            return self._schema_version(conn)
 
     def approve(
         self,
@@ -384,6 +390,11 @@ class ApprovalQueue:
 
     def _init_db(self) -> None:
         with self._connect() as conn:
+            version = self._schema_version(conn)
+            if version > APPROVAL_DB_SCHEMA_VERSION:
+                raise ApprovalQueueError(
+                    "Approval database schema is newer than this AgentGate version."
+                )
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS approvals (
@@ -429,6 +440,12 @@ class ApprovalQueue:
                 ON approval_edits(approval_id, edited_at)
                 """
             )
+            conn.execute(f"PRAGMA user_version = {APPROVAL_DB_SCHEMA_VERSION}")
+
+    @staticmethod
+    def _schema_version(conn: sqlite3.Connection) -> int:
+        row = conn.execute("PRAGMA user_version").fetchone()
+        return int(row[0])
 
     @staticmethod
     def _row_to_record(row: sqlite3.Row) -> ApprovalRecord:
