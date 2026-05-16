@@ -94,6 +94,15 @@ agentgate approvals list
 The output includes the `approval_id`, `request_id`, approval status, stored
 request payload, decision, and execution status.
 
+Inspect one approval:
+
+```bat
+agentgate approvals show <approval-id>
+```
+
+The output includes the current stored payload, decision, status, execution
+status, and edit-history summary.
+
 ## 5. Edit a Pending Approval
 
 Use this flow when the proposed action is directionally acceptable but the
@@ -122,6 +131,7 @@ agentgate approvals history <approval-id>
 
 The output includes previous and edited request/decision payloads, editor,
 reason, and edit timestamp for each revision.
+For a compact view, use `agentgate approvals show <approval-id>`.
 
 This is intentional: editing must not turn a pending approval into a silent
 allow or a denied action.

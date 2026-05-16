@@ -221,3 +221,71 @@ def test_cli_history_lists_approval_edit_payloads(tmp_path: Path) -> None:
     }
     assert output[0]["edited_by"] == "human-reviewer"
     assert output[0]["edit_reason"] == "Narrowed content."
+
+
+def test_cli_show_includes_current_payload_and_edit_summary(tmp_path: Path) -> None:
+    db_path = tmp_path / "approvals.sqlite"
+    audit_path = tmp_path / "audit.jsonl"
+    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    check = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    approval_id = json.loads(check.output)["approval_id"]
+    edited_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    edited_payload["input"] = {"content": "edited synthetic content"}
+    edited_path = tmp_path / "edited_request.json"
+    edited_path.write_text(json.dumps(edited_payload), encoding="utf-8")
+
+    edit = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "edit",
+            approval_id,
+            str(edited_path),
+            "--request-id",
+            "req_write_private_note",
+            "--editor",
+            "human-reviewer",
+            "--reason",
+            "Narrowed content.",
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    assert edit.exit_code == 0, edit.output
+
+    show = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "show",
+            approval_id,
+            "--approval-db",
+            str(db_path),
+        ],
+    )
+
+    assert show.exit_code == 0, show.output
+    output = json.loads(show.output)
+    assert output["approval"]["approval_id"] == approval_id
+    assert output["approval"]["status"] == "pending"
+    assert output["approval"]["execution_status"] == "not_executed"
+    assert output["approval"]["request"]["input"] == {
+        "content": "edited synthetic content"
+    }
+    assert output["approval"]["decision"]["status"] == "require_approval"
+    assert output["edit_history"]["count"] == 1
+    assert output["edit_history"]["edits"][0]["edited_by"] == "human-reviewer"
+    assert output["edit_history"]["edits"][0]["edit_reason"] == "Narrowed content."
+    assert "previous_request" not in output["edit_history"]["edits"][0]

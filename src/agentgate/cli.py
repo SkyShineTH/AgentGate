@@ -110,6 +110,34 @@ def list_approvals(
 
 
 @approvals_app.command()
+def show(
+    approval_id: str,
+    approval_db: Path = typer.Option(
+        DEFAULT_APPROVAL_DB,
+        "--approval-db",
+        help="SQLite approval queue path.",
+    ),
+) -> None:
+    """Show one approval with its current payload and edit summary."""
+    queue = ApprovalQueue(approval_db)
+    try:
+        record = queue.get(approval_id)
+    except ApprovalNotFound as exc:
+        _fail(str(exc))
+
+    edits = queue.list_edits(approval_id)
+    typer.echo(
+        json.dumps(
+            {
+                "approval": record.model_dump(mode="json"),
+                "edit_history": _edit_history_summary(edits),
+            },
+            indent=2,
+        )
+    )
+
+
+@approvals_app.command()
 def history(
     approval_id: str,
     approval_db: Path = typer.Option(
@@ -372,6 +400,21 @@ def _parse_request_or_none(payload: dict[str, Any]) -> ToolRequest | None:
 
 def _echo_json(model: Any) -> None:
     typer.echo(model.model_dump_json(indent=2, exclude_none=True))
+
+
+def _edit_history_summary(edits: list[Any]) -> dict[str, Any]:
+    return {
+        "count": len(edits),
+        "edits": [
+            {
+                "edit_id": edit.edit_id,
+                "edited_at": edit.edited_at.isoformat(),
+                "edited_by": edit.edited_by,
+                "edit_reason": edit.edit_reason,
+            }
+            for edit in edits
+        ],
+    }
 
 
 def _fail(message: str) -> None:
