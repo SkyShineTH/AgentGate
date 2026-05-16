@@ -47,6 +47,67 @@ def test_check_queues_approval_required_request(tmp_path: Path) -> None:
     ]
 
 
+def test_cli_list_filters_approval_records(tmp_path: Path) -> None:
+    db_path = tmp_path / "approvals.sqlite"
+    audit_path = tmp_path / "audit.jsonl"
+    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    check = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    assert check.exit_code == 0, check.output
+
+    by_request = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "list",
+            "--request-id",
+            "req_write_private_note",
+            "--approval-db",
+            str(db_path),
+        ],
+    )
+    by_tool = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "list",
+            "--tool",
+            "file.write",
+            "--execution-status",
+            "not_executed",
+            "--approval-db",
+            str(db_path),
+        ],
+    )
+    no_match = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "list",
+            "--actor",
+            "other-agent",
+            "--approval-db",
+            str(db_path),
+        ],
+    )
+
+    assert by_request.exit_code == 0, by_request.output
+    assert by_tool.exit_code == 0, by_tool.output
+    assert no_match.exit_code == 0, no_match.output
+    assert len(json.loads(by_request.output)) == 1
+    assert len(json.loads(by_tool.output)) == 1
+    assert json.loads(no_match.output) == []
+
+
 def test_cli_approve_and_reject_use_request_id_guard(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"

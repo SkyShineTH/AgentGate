@@ -93,6 +93,26 @@ def list_approvals(
         "--status",
         help="Filter approvals by status.",
     ),
+    request_id: str | None = typer.Option(
+        None,
+        "--request-id",
+        help="Filter approvals by request_id.",
+    ),
+    actor: str | None = typer.Option(
+        None,
+        "--actor",
+        help="Filter approvals by request actor.",
+    ),
+    tool: str | None = typer.Option(
+        None,
+        "--tool",
+        help="Filter approvals by tool name.",
+    ),
+    execution_status: ExecutionStatus | None = typer.Option(
+        None,
+        "--execution-status",
+        help="Filter approvals by execution status.",
+    ),
     approval_db: Path = typer.Option(
         DEFAULT_APPROVAL_DB,
         "--approval-db",
@@ -100,7 +120,13 @@ def list_approvals(
     ),
 ) -> None:
     """List approval records."""
-    records = ApprovalQueue(approval_db).list(status)
+    records = ApprovalQueue(approval_db).list(
+        status,
+        request_id=request_id,
+        actor=actor,
+        tool=tool,
+        execution_status=execution_status,
+    )
     typer.echo(
         json.dumps(
             [record.model_dump(mode="json") for record in records],

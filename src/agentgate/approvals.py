@@ -110,17 +110,39 @@ class ApprovalQueue:
         self._insert(record)
         return record
 
-    def list(self, status: ApprovalStatus | None = None) -> list[ApprovalRecord]:
+    def list(
+        self,
+        status: ApprovalStatus | None = None,
+        *,
+        request_id: str | None = None,
+        actor: str | None = None,
+        tool: str | None = None,
+        execution_status: ExecutionStatus | None = None,
+    ) -> list[ApprovalRecord]:
         query = "SELECT * FROM approvals"
-        params: tuple[str, ...] = ()
+        clauses: list[str] = []
+        params: list[str] = []
         if status is not None:
-            query += " WHERE status = ?"
-            params = (status.value,)
+            clauses.append("status = ?")
+            params.append(status.value)
+        if request_id is not None:
+            clauses.append("request_id = ?")
+            params.append(request_id)
+        if execution_status is not None:
+            clauses.append("execution_status = ?")
+            params.append(execution_status.value)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
         query += " ORDER BY created_at ASC"
 
         with self._connect() as conn:
-            rows = conn.execute(query, params).fetchall()
-        return [self._row_to_record(row) for row in rows]
+            rows = conn.execute(query, tuple(params)).fetchall()
+        records = [self._row_to_record(row) for row in rows]
+        if actor is not None:
+            records = [record for record in records if record.request.actor == actor]
+        if tool is not None:
+            records = [record for record in records if record.request.tool == tool]
+        return records
 
     def get(self, approval_id: str) -> ApprovalRecord:
         with self._connect() as conn:

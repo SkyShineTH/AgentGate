@@ -94,6 +94,14 @@ agentgate approvals list
 The output includes the `approval_id`, `request_id`, approval status, stored
 request payload, decision, and execution status.
 
+Filter approvals when the queue grows:
+
+```bat
+agentgate approvals list --status pending --tool file.write
+agentgate approvals list --request-id <request-id>
+agentgate approvals list --actor demo-agent --execution-status not_executed
+```
+
 Inspect one approval:
 
 ```bat

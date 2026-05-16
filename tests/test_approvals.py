@@ -110,6 +110,44 @@ def test_duplicate_request_id_with_different_payload_is_rejected(
         approvals.create_pending(changed, approval_decision(changed))
 
 
+def test_list_filters_approval_records(tmp_path: Path) -> None:
+    approvals = queue(tmp_path)
+    write_request = approval_request(tmp_path)
+    append_request = approval_request(
+        tmp_path,
+        request_id="req_append_private_note",
+        actor="review-agent",
+        tool="file.append",
+        action="append",
+    )
+    write_record = approvals.create_pending(
+        write_request,
+        approval_decision(write_request),
+    )
+    approvals.create_pending(append_request, approval_decision(append_request))
+    approvals.approve(
+        write_record.approval_id,
+        approver="human-reviewer",
+        expected_request_id=write_request.request_id,
+    )
+    approvals.claim_for_execution(write_record.approval_id)
+
+    assert [
+        record.request_id
+        for record in approvals.list(request_id=append_request.request_id)
+    ] == [append_request.request_id]
+    assert [record.request_id for record in approvals.list(actor="review-agent")] == [
+        append_request.request_id
+    ]
+    assert [record.request_id for record in approvals.list(tool="file.append")] == [
+        append_request.request_id
+    ]
+    assert [
+        record.request_id
+        for record in approvals.list(execution_status=ExecutionStatus.IN_PROGRESS)
+    ] == [write_request.request_id]
+
+
 def test_approval_persists_after_reopening_database(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     request = approval_request(tmp_path)
