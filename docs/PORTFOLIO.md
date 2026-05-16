@@ -1,6 +1,6 @@
 # Portfolio Notes
 
-Last updated: 2026-05-07
+Last updated: 2026-05-16
 
 ## Short Description
 
@@ -21,7 +21,12 @@ approval when needed, execute only approved actions, and record an audit trail.
 - Private reads and writes require request-specific approval.
 - Deletes and shell execution are denied by default.
 - Approved execution uses the exact stored request payload.
+- Approval edits preserve previous and edited payloads in SQLite history.
+- CLI inspection supports approval list filters, single approval summaries, and
+  full edit-history review.
 - Audit logs capture policy, approval, and execution lifecycle events.
+- SQLite schema versioning keeps local approval storage inspectable as the MVP
+  evolves.
 - Optional adapters are kept outside the core policy model.
 
 ## Resume Bullet
@@ -36,4 +41,3 @@ Avoid describing AgentGate as production security, zero trust, enterprise-grade,
 or a full replacement for agent frameworks. Use precise language: scoped
 permissions, approval workflow, audit logging, path boundary enforcement, and
 least-privilege tool access.
-

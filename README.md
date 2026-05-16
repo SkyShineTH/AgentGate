@@ -87,6 +87,32 @@ revisions. `approvals list` can filter by `--status`, `--request-id`,
 exact current stored request payload. Shell execution and delete execution are
 not implemented by the local executor.
 
+### Local Approval Walkthrough
+
+Use the sample write request to exercise the approval lifecycle:
+
+```bash
+agentgate check examples/requests/write_private_note_requires_approval.json
+agentgate approvals list --status pending --tool file.write
+agentgate approvals show <approval-id>
+```
+
+To narrow the pending payload before approval, copy the sample request, keep the
+same `request_id`, edit only the intended fields, then submit it:
+
+```bash
+cp examples/requests/write_private_note_requires_approval.json edited_request.json
+# edit edited_request.json, keeping request_id unchanged
+agentgate approvals edit <approval-id> edited_request.json --request-id req_write_private_note
+agentgate approvals history <approval-id>
+agentgate approvals approve <approval-id> --request-id req_write_private_note
+agentgate approvals execute <approval-id>
+```
+
+The approval database keeps the current executable payload and the edit history;
+the JSONL audit log records the policy, approval, edit, decision, and execution
+events.
+
 ## Optional Adapters
 
 Adapter helpers live under `agentgate.adapters` and convert external tool-call
