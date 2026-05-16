@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -117,6 +118,84 @@ def test_approval_persists_after_reopening_database(tmp_path: Path) -> None:
 
     assert loaded.approval_id == created.approval_id
     assert loaded.request.model_dump(mode="json") == request.model_dump(mode="json")
+
+
+def test_existing_approval_database_adds_edit_history_table(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "approvals.sqlite"
+    approval_id = "appr_legacy"
+    request = approval_request(tmp_path)
+    decision = approval_decision(request).model_copy(update={"approval_id": approval_id})
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE approvals (
+                approval_id TEXT PRIMARY KEY,
+                request_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                request_json TEXT NOT NULL,
+                decision_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                decided_at TEXT,
+                decided_by TEXT,
+                decision_reason TEXT,
+                execution_status TEXT NOT NULL,
+                executed_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO approvals (
+                approval_id,
+                request_id,
+                status,
+                request_json,
+                decision_json,
+                created_at,
+                decided_at,
+                decided_by,
+                decision_reason,
+                execution_status,
+                executed_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                approval_id,
+                request.request_id,
+                ApprovalStatus.PENDING.value,
+                request.model_dump_json(),
+                decision.model_dump_json(),
+                "2026-05-16T00:00:00+00:00",
+                None,
+                None,
+                None,
+                ExecutionStatus.NOT_EXECUTED.value,
+                None,
+            ),
+        )
+
+    approvals = ApprovalQueue(db_path)
+    edited = approval_request(tmp_path, input={"content": "edited after migration"})
+
+    assert approvals.get(approval_id).request_id == request.request_id
+    assert approvals.list_edits(approval_id) == []
+
+    approvals.edit_pending(
+        approval_id,
+        edited,
+        approval_decision(edited),
+        editor="human-reviewer",
+        expected_request_id=request.request_id,
+    )
+
+    edits = approvals.list_edits(approval_id)
+
+    assert len(edits) == 1
+    assert edits[0].previous_request.input == {"content": "approved synthetic content"}
+    assert edits[0].edited_request.input == {"content": "edited after migration"}
 
 
 def test_approve_and_reject_are_one_way_state_transitions(tmp_path: Path) -> None:

@@ -110,6 +110,31 @@ def list_approvals(
 
 
 @approvals_app.command()
+def history(
+    approval_id: str,
+    approval_db: Path = typer.Option(
+        DEFAULT_APPROVAL_DB,
+        "--approval-db",
+        help="SQLite approval queue path.",
+    ),
+) -> None:
+    """List edit history for an approval record."""
+    queue = ApprovalQueue(approval_db)
+    try:
+        queue.get(approval_id)
+    except ApprovalNotFound as exc:
+        _fail(str(exc))
+
+    edits = queue.list_edits(approval_id)
+    typer.echo(
+        json.dumps(
+            [edit.model_dump(mode="json") for edit in edits],
+            indent=2,
+        )
+    )
+
+
+@approvals_app.command()
 def edit(
     approval_id: str,
     request_json: Path,

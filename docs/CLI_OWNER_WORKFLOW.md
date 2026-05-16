@@ -114,6 +114,15 @@ The approval row is updated to the latest payload, and an `approval_edits`
 SQLite row records the previous and edited request/decision payloads with the
 editor and reason.
 
+Inspect edit history for an approval:
+
+```bat
+agentgate approvals history <approval-id>
+```
+
+The output includes previous and edited request/decision payloads, editor,
+reason, and edit timestamp for each revision.
+
 This is intentional: editing must not turn a pending approval into a silent
 allow or a denied action.
 
@@ -145,6 +154,7 @@ agentgate approvals execute <approval-id>
 Execution uses the exact request payload currently stored in the approval
 record. If the approval was edited before approval, the latest edited payload is
 what executes, while prior revisions remain inspectable in `approval_edits`.
+They are also available through `agentgate approvals history <approval-id>`.
 
 Approved requests are claimed atomically and can execute only once.
 

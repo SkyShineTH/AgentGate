@@ -116,7 +116,8 @@ def test_cli_edit_updates_pending_approval_payload_and_audit(
         ],
     )
     approval_id = json.loads(check.output)["approval_id"]
-    edited_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    original_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    edited_payload = dict(original_payload)
     edited_payload["input"] = {"content": "edited synthetic content"}
     edited_path = tmp_path / "edited_request.json"
     edited_path.write_text(json.dumps(edited_payload), encoding="utf-8")
@@ -154,3 +155,69 @@ def test_cli_edit_updates_pending_approval_payload_and_audit(
         "approval_edited",
     ]
     assert events[-1]["payload"]["edited_by"] == "human-reviewer"
+
+
+def test_cli_history_lists_approval_edit_payloads(tmp_path: Path) -> None:
+    db_path = tmp_path / "approvals.sqlite"
+    audit_path = tmp_path / "audit.jsonl"
+    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    check = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    approval_id = json.loads(check.output)["approval_id"]
+    original_payload = json.loads(request_path.read_text(encoding="utf-8"))
+    edited_payload = dict(original_payload)
+    edited_payload["input"] = {"content": "edited synthetic content"}
+    edited_path = tmp_path / "edited_request.json"
+    edited_path.write_text(json.dumps(edited_payload), encoding="utf-8")
+
+    edit = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "edit",
+            approval_id,
+            str(edited_path),
+            "--request-id",
+            "req_write_private_note",
+            "--editor",
+            "human-reviewer",
+            "--reason",
+            "Narrowed content.",
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    assert edit.exit_code == 0, edit.output
+
+    history = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "history",
+            approval_id,
+            "--approval-db",
+            str(db_path),
+        ],
+    )
+
+    assert history.exit_code == 0, history.output
+    output = json.loads(history.output)
+    assert len(output) == 1
+    assert output[0]["approval_id"] == approval_id
+    assert output[0]["previous_request"]["input"] == original_payload["input"]
+    assert output[0]["edited_request"]["input"] == {
+        "content": "edited synthetic content"
+    }
+    assert output[0]["edited_by"] == "human-reviewer"
+    assert output[0]["edit_reason"] == "Narrowed content."

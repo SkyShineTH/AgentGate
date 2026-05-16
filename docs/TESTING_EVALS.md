@@ -62,6 +62,7 @@ Required cases:
 - approved request can execute once
 - rejected request cannot execute
 - edited request records both original and edited payloads in approval storage
+- existing approval databases initialize edit-history storage without data loss
 - approval cannot be applied to a different request ID
 
 ### Audit Tests
