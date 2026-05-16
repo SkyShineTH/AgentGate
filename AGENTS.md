@@ -277,3 +277,14 @@ regression tests for safer file, shell, and API automation.
 - Keep public docs in English unless the user explicitly asks otherwise.
 - If a requested change conflicts with these instructions, surface the conflict
   before editing.
+
+## Commit Message Rules
+
+Use Conventional Commit-style prefixes for commits. Examples:
+
+- `feat: add approval history command`
+- `fix: validate edited approval identity`
+- `docs: clarify approval workflow`
+- `test: cover legacy approval database migration`
+- `refactor: simplify registry side-effect checks`
+- `chore: update project tooling`
