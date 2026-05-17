@@ -35,7 +35,7 @@ def test_audit_log_appends_jsonl_events(tmp_path: Path) -> None:
     audit.record(
         event_type="policy_decision",
         request=request(),
-        decision=decision(),
+        decision=decision().model_copy(update={"approval_id": None}),
         payload={"input": {"content": "synthetic content"}},
     )
     audit.record(
@@ -55,6 +55,42 @@ def test_audit_log_appends_jsonl_events(tmp_path: Path) -> None:
     assert lines[0]["request_id"] == "req_audit"
     assert lines[0]["decision"] == "require_approval"
     assert lines[1]["approval_id"] == "appr_audit"
+
+
+def test_audit_log_filters_events(tmp_path: Path) -> None:
+    log_path = tmp_path / "audit.jsonl"
+    audit = AuditLog(log_path)
+    audit.record(
+        event_type="policy_decision",
+        request=request(),
+        decision=decision().model_copy(update={"approval_id": None}),
+        payload={"input": {"content": "synthetic content"}},
+    )
+    audit.record(
+        event_type="approval_created",
+        request=request(),
+        decision=decision(),
+        approval_id="appr_audit",
+    )
+    other_request = request().model_copy(update={"request_id": "req_other"})
+    other_decision = decision().model_copy(
+        update={"request_id": "req_other", "approval_id": "appr_other"}
+    )
+    audit.record(
+        event_type="policy_decision",
+        request=other_request,
+        decision=other_decision,
+    )
+
+    assert [
+        event.event_type for event in audit.list_events(request_id="req_audit")
+    ] == ["policy_decision", "approval_created"]
+    assert [
+        event.event_type for event in audit.list_events(approval_id="appr_audit")
+    ] == ["approval_created"]
+    assert [
+        event.request_id for event in audit.list_events(event_type="policy_decision")
+    ] == ["req_audit", "req_other"]
 
 
 def test_audit_redacts_likely_secrets() -> None:

@@ -77,6 +77,22 @@ class AuditLog:
                 events.append(AuditEvent.model_validate_json(line))
         return events
 
+    def list_events(
+        self,
+        *,
+        request_id: str | None = None,
+        approval_id: str | None = None,
+        event_type: str | None = None,
+    ) -> list[AuditEvent]:
+        events = self.read_events()
+        if request_id is not None:
+            events = [event for event in events if event.request_id == request_id]
+        if approval_id is not None:
+            events = [event for event in events if event.approval_id == approval_id]
+        if event_type is not None:
+            events = [event for event in events if event.event_type == event_type]
+        return events
+
     @staticmethod
     def _request_id(request: ToolRequest | None, decision: Decision | None) -> str:
         if request:

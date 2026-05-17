@@ -113,6 +113,14 @@ The approval database keeps the current executable payload and the edit history;
 the JSONL audit log records the policy, approval, edit, decision, and execution
 events.
 
+Inspect audit events without opening the JSONL file directly:
+
+```bash
+agentgate audit list --request-id req_write_private_note
+agentgate audit list --approval-id <approval-id>
+agentgate audit list --event-type approval_edited
+```
+
 ## Optional Adapters
 
 Adapter helpers live under `agentgate.adapters` and convert external tool-call

@@ -23,8 +23,10 @@ from agentgate.tools import ToolExecutor
 
 app = typer.Typer(add_completion=False, help="AgentGate policy gateway CLI.")
 approvals_app = typer.Typer(help="Manage pending approval requests.")
+audit_app = typer.Typer(help="Inspect audit log events.")
 demo_app = typer.Typer(help="Run local synthetic demos.")
 app.add_typer(approvals_app, name="approvals")
+app.add_typer(audit_app, name="audit")
 app.add_typer(demo_app, name="demo")
 
 DEFAULT_STATE_DIR = Path(".agentgate")
@@ -84,6 +86,43 @@ def check(
             )
 
     _echo_json(decision)
+
+
+@audit_app.command("list")
+def list_audit_events(
+    request_id: str | None = typer.Option(
+        None,
+        "--request-id",
+        help="Filter audit events by request_id.",
+    ),
+    approval_id: str | None = typer.Option(
+        None,
+        "--approval-id",
+        help="Filter audit events by approval_id.",
+    ),
+    event_type: str | None = typer.Option(
+        None,
+        "--event-type",
+        help="Filter audit events by event type.",
+    ),
+    audit_log: Path = typer.Option(
+        DEFAULT_AUDIT_LOG,
+        "--audit-log",
+        help="JSONL audit log path.",
+    ),
+) -> None:
+    """List audit log events."""
+    events = AuditLog(audit_log).list_events(
+        request_id=request_id,
+        approval_id=approval_id,
+        event_type=event_type,
+    )
+    typer.echo(
+        json.dumps(
+            [event.model_dump(mode="json") for event in events],
+            indent=2,
+        )
+    )
 
 
 @approvals_app.command("list")

@@ -184,6 +184,14 @@ Audit events are written to JSONL under `.agentgate\audit.jsonl` by default:
 type .agentgate\audit.jsonl
 ```
 
+You can also inspect audit events through the CLI:
+
+```bat
+agentgate audit list --request-id <request-id>
+agentgate audit list --approval-id <approval-id>
+agentgate audit list --event-type approval_edited
+```
+
 Common event types:
 
 - `policy_decision`

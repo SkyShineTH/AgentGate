@@ -47,6 +47,71 @@ def test_check_queues_approval_required_request(tmp_path: Path) -> None:
     ]
 
 
+def test_cli_audit_list_filters_events(tmp_path: Path) -> None:
+    db_path = tmp_path / "approvals.sqlite"
+    audit_path = tmp_path / "audit.jsonl"
+    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    check = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    assert check.exit_code == 0, check.output
+    approval_id = json.loads(check.output)["approval_id"]
+
+    by_request = RUNNER.invoke(
+        app,
+        [
+            "audit",
+            "list",
+            "--request-id",
+            "req_write_private_note",
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    by_approval = RUNNER.invoke(
+        app,
+        [
+            "audit",
+            "list",
+            "--approval-id",
+            approval_id,
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    by_type = RUNNER.invoke(
+        app,
+        [
+            "audit",
+            "list",
+            "--event-type",
+            "approval_created",
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+
+    assert by_request.exit_code == 0, by_request.output
+    assert by_approval.exit_code == 0, by_approval.output
+    assert by_type.exit_code == 0, by_type.output
+    assert [event["event_type"] for event in json.loads(by_request.output)] == [
+        "policy_decision",
+        "approval_created",
+    ]
+    assert [event["event_type"] for event in json.loads(by_approval.output)] == [
+        "approval_created"
+    ]
+    assert json.loads(by_type.output)[0]["approval_id"] == approval_id
+
+
 def test_cli_list_filters_approval_records(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"
