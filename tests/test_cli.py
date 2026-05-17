@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from agentgate.approvals import ApprovalQueue, ApprovalStatus
 from agentgate.audit import load_json_lines
 from agentgate.cli import app
+from agentgate.workspace import WorkspaceBoundary
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = CliRunner()
@@ -415,3 +416,142 @@ def test_cli_show_includes_current_payload_and_edit_summary(tmp_path: Path) -> N
     assert output["edit_history"]["edits"][0]["edited_by"] == "human-reviewer"
     assert output["edit_history"]["edits"][0]["edit_reason"] == "Narrowed content."
     assert "previous_request" not in output["edit_history"]["edits"][0]
+
+
+def test_cli_end_to_end_approval_workflow(tmp_path: Path, monkeypatch) -> None:
+    public_root = tmp_path / "examples" / "workspace" / "public"
+    private_root = tmp_path / "examples" / "workspace" / "private"
+    public_root.mkdir(parents=True)
+    private_root.mkdir(parents=True)
+    monkeypatch.setattr(
+        WorkspaceBoundary,
+        "default",
+        classmethod(
+            lambda cls: WorkspaceBoundary(
+                base_dir=tmp_path,
+                public_root=public_root,
+                private_root=private_root,
+            )
+        ),
+    )
+    db_path = tmp_path / "approvals.sqlite"
+    audit_path = tmp_path / "audit.jsonl"
+    request_payload = {
+        "request_id": "req_e2e_write_note",
+        "actor": "demo-agent",
+        "tool": "file.write",
+        "action": "write",
+        "resource": "examples/workspace/private/e2e_note.txt",
+        "input": {"content": "original e2e content"},
+        "metadata": {"scenario": "e2e_approval_workflow"},
+    }
+    request_path = tmp_path / "request.json"
+    request_path.write_text(json.dumps(request_payload), encoding="utf-8")
+
+    check = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    assert check.exit_code == 0, check.output
+    approval_id = json.loads(check.output)["approval_id"]
+
+    listed = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "list",
+            "--status",
+            "pending",
+            "--tool",
+            "file.write",
+            "--approval-db",
+            str(db_path),
+        ],
+    )
+    shown = RUNNER.invoke(
+        app,
+        ["approvals", "show", approval_id, "--approval-db", str(db_path)],
+    )
+    assert listed.exit_code == 0, listed.output
+    assert shown.exit_code == 0, shown.output
+    assert json.loads(listed.output)[0]["approval_id"] == approval_id
+    assert json.loads(shown.output)["edit_history"]["count"] == 0
+
+    edited_payload = dict(request_payload)
+    edited_payload["input"] = {"content": "edited e2e content"}
+    edited_path = tmp_path / "edited_request.json"
+    edited_path.write_text(json.dumps(edited_payload), encoding="utf-8")
+    edited = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "edit",
+            approval_id,
+            str(edited_path),
+            "--request-id",
+            "req_e2e_write_note",
+            "--editor",
+            "human-reviewer",
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    history = RUNNER.invoke(
+        app,
+        ["approvals", "history", approval_id, "--approval-db", str(db_path)],
+    )
+    assert edited.exit_code == 0, edited.output
+    assert history.exit_code == 0, history.output
+    assert json.loads(history.output)[0]["edited_request"]["input"] == {
+        "content": "edited e2e content"
+    }
+
+    approved = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "approve",
+            approval_id,
+            "--request-id",
+            "req_e2e_write_note",
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    executed = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "execute",
+            approval_id,
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+
+    assert approved.exit_code == 0, approved.output
+    assert executed.exit_code == 0, executed.output
+    assert json.loads(executed.output)["result_status"] == "completed"
+    assert (private_root / "e2e_note.txt").read_text(encoding="utf-8") == (
+        "edited e2e content"
+    )
+    assert [event["event_type"] for event in load_json_lines(audit_path)] == [
+        "policy_decision",
+        "approval_created",
+        "approval_edited",
+        "approval_decided",
+        "executed",
+    ]
