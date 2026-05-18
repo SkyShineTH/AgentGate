@@ -41,6 +41,18 @@ Current non-boundaries:
 - AgentGate does not validate the semantic safety of file contents read by an
   agent.
 
+## Threat Model Summary
+
+| Risk | Control | Test coverage | Residual risk |
+|---|---|---|---|
+| Path traversal or workspace escape | `WorkspaceBoundary` normalizes paths and rejects `..` and paths outside configured roots. | `test_path_traversal_denied`, `test_path_outside_workspace_denied` | OS-level permissions are still required for code that bypasses AgentGate. |
+| Wrong or stale approval applied to another request | Approval operations require the expected `request_id`; edited requests and decisions must keep the same request identity. | approval request-id guard and edit identity tests | Local operators can still approve a bad but correctly identified request. |
+| Direct executor bypass | `ToolExecutor.execute()` requires explicit authorization and checks registered tools/actions before file operations. | direct unauthorized executor and custom registry tests | Code with direct filesystem access can bypass the Python executor entirely. |
+| Secret leakage in audit logs | Audit payloads pass through deterministic redaction before JSONL write. | audit redaction tests | Pattern-based redaction can miss unknown secret formats. |
+| Runtime permission metadata bypass | Adapter metadata is preserved as context but policy ignores it as an authorization source. | runtime permission handoff adapter test | Full provider SDK behavior is not claimed until adapter-specific tests exist. |
+| Local audit or SQLite tampering | Approval and audit records are structured and inspectable, with SQLite schema versioning for the approval store. | approval persistence, edit history, and schema version tests | Local users with filesystem access can modify or delete local state files. |
+| Prompt injection causing unsafe tool calls | Policy enforcement happens outside prompts; state-changing file actions require approval and deletes/shell are denied by default. | policy, approval, and denied-action tests | AgentGate does not classify arbitrary document content as safe or unsafe. |
+
 ## What AgentGate Can Help With
 
 - Making tool permissions explicit and testable.
