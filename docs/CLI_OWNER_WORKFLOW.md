@@ -182,6 +182,15 @@ They are also available through `agentgate approvals history <approval-id>`.
 
 Approved requests are claimed atomically and can execute only once.
 
+Create a combined lifecycle report:
+
+```bat
+agentgate approvals report <approval-id>
+```
+
+The report includes the current approval record, full edit history, and related
+audit events.
+
 ## 8. Inspect Audit Logs
 
 Audit events are written to JSONL under `.agentgate\audit.jsonl` by default:

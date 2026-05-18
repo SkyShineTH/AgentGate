@@ -75,6 +75,7 @@ agentgate approvals list --status pending --tool file.write
 agentgate approvals show <approval-id>
 agentgate approvals edit <approval-id> <edited-request-json> --request-id <request-id>
 agentgate approvals history <approval-id>
+agentgate approvals report <approval-id>
 agentgate approvals approve <approval-id> --request-id <request-id>
 agentgate approvals reject <approval-id> --request-id <request-id>
 agentgate approvals execute <approval-id>
@@ -112,11 +113,13 @@ agentgate approvals edit <approval-id> edited_request.json --request-id req_writ
 agentgate approvals history <approval-id>
 agentgate approvals approve <approval-id> --request-id req_write_private_note
 agentgate approvals execute <approval-id>
+agentgate approvals report <approval-id>
 ```
 
 The approval database keeps the current executable payload and the edit history;
 the JSONL audit log records the policy, approval, edit, decision, and execution
-events.
+events. `approvals report` combines those approval, edit-history, and audit
+views into one JSON object.
 
 Inspect audit events without opening the JSONL file directly:
 

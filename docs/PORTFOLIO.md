@@ -26,6 +26,8 @@ and audit lifecycle after a runtime proposes an action.
 - Approval edits preserve previous and edited payloads in SQLite history.
 - CLI inspection supports approval list filters, single approval summaries, and
   full edit-history review.
+- Approval reports combine current approval state, edit history, and audit
+  events for demo review.
 - Audit logs capture policy, approval, and execution lifecycle events.
 - SQLite schema versioning keeps local approval storage inspectable as the MVP
   evolves.

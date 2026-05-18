@@ -234,6 +234,45 @@ def history(
 
 
 @approvals_app.command()
+def report(
+    approval_id: str,
+    approval_db: Path = typer.Option(
+        DEFAULT_APPROVAL_DB,
+        "--approval-db",
+        help="SQLite approval queue path.",
+    ),
+    audit_log: Path = typer.Option(
+        DEFAULT_AUDIT_LOG,
+        "--audit-log",
+        help="JSONL audit log path.",
+    ),
+) -> None:
+    """Show approval, edit history, and related audit events."""
+    queue = ApprovalQueue(approval_db)
+    try:
+        record = queue.get(approval_id)
+    except ApprovalNotFound as exc:
+        _fail(str(exc))
+
+    edits = queue.list_edits(approval_id)
+    events = _audit_events_for_approval(
+        AuditLog(audit_log),
+        request_id=record.request_id,
+        approval_id=approval_id,
+    )
+    typer.echo(
+        json.dumps(
+            {
+                "approval": record.model_dump(mode="json"),
+                "edit_history": [edit.model_dump(mode="json") for edit in edits],
+                "audit_events": [event.model_dump(mode="json") for event in events],
+            },
+            indent=2,
+        )
+    )
+
+
+@approvals_app.command()
 def edit(
     approval_id: str,
     request_json: Path,
@@ -501,6 +540,26 @@ def _edit_history_summary(edits: list[Any]) -> dict[str, Any]:
             for edit in edits
         ],
     }
+
+
+def _audit_events_for_approval(
+    audit: AuditLog,
+    *,
+    request_id: str,
+    approval_id: str,
+) -> list[Any]:
+    events = [
+        *audit.list_events(request_id=request_id),
+        *audit.list_events(approval_id=approval_id),
+    ]
+    seen: set[str] = set()
+    unique_events = []
+    for event in events:
+        if event.event_id in seen:
+            continue
+        seen.add(event.event_id)
+        unique_events.append(event)
+    return unique_events
 
 
 def _fail(message: str) -> None:

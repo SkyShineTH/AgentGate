@@ -569,14 +569,39 @@ def test_cli_end_to_end_approval_workflow(tmp_path: Path, monkeypatch) -> None:
             str(audit_path),
         ],
     )
+    report = RUNNER.invoke(
+        app,
+        [
+            "approvals",
+            "report",
+            approval_id,
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
 
     assert approved.exit_code == 0, approved.output
     assert executed.exit_code == 0, executed.output
+    assert report.exit_code == 0, report.output
     assert json.loads(executed.output)["result_status"] == "completed"
     assert (private_root / "e2e_note.txt").read_text(encoding="utf-8") == (
         "edited e2e content"
     )
     assert [event["event_type"] for event in load_json_lines(audit_path)] == [
+        "policy_decision",
+        "approval_created",
+        "approval_edited",
+        "approval_decided",
+        "executed",
+    ]
+    report_output = json.loads(report.output)
+    assert report_output["approval"]["execution_status"] == "completed"
+    assert report_output["edit_history"][0]["edited_request"]["input"] == {
+        "content": "edited e2e content"
+    }
+    assert [event["event_type"] for event in report_output["audit_events"]] == [
         "policy_decision",
         "approval_created",
         "approval_edited",
