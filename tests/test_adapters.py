@@ -133,6 +133,37 @@ def test_openai_provider_metadata_does_not_change_policy_decision(
     assert adapted_decision.matched_rule == canonical_decision.matched_rule
 
 
+def test_runtime_permission_handoff_still_requires_agentgate_policy(
+    tmp_path: Path,
+) -> None:
+    tool_call = {
+        "id": "call_runtime_allowed",
+        "function": {
+            "name": "agentgate_tool_request",
+            "arguments": {
+                "tool": "file.write",
+                "action": "write",
+                "resource": "examples/workspace/private/runtime-note.txt",
+                "input": {"content": "synthetic runtime handoff note"},
+                "metadata": {
+                    "runtime_permission": "allowed_to_propose",
+                    "runtime_permission_scope": "file.write",
+                },
+            },
+        },
+    }
+
+    request = OpenAIFunctionToolCallAdapter(
+        tool_call,
+        actor="demo-agent",
+    ).to_tool_request()
+    decision = PolicyEngine(workspace(tmp_path)).evaluate(request)
+
+    assert request.metadata["runtime_permission"] == "allowed_to_propose"
+    assert decision.status == DecisionStatus.REQUIRE_APPROVAL
+    assert decision.matched_rule == "file_write_requires_approval"
+
+
 def test_openai_style_adapter_supports_mapping_arguments(tmp_path: Path) -> None:
     tool_call = {
         "id": "call_mapping",

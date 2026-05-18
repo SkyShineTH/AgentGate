@@ -11,6 +11,10 @@ It should be used with process isolation, filesystem permissions, network
 controls, credential scoping, and infrastructure-level access controls
 appropriate to the deployment environment.
 
+AgentGate is also not a replacement for built-in agent runtime permissions. It
+is a second policy and audit layer for proposed actions that a runtime or
+adapter has already normalized into `ToolRequest`.
+
 ## Current Trust Boundaries
 
 AgentGate assumes the caller can submit untrusted tool requests, but the Python
@@ -46,6 +50,7 @@ Current non-boundaries:
 - Recording structured audit events.
 - Redacting obvious secrets from logs.
 - Keeping provider-specific tool metadata behind adapters.
+- Preserving runtime permission context without letting it override policy.
 
 ## What AgentGate Does Not Guarantee
 
@@ -129,6 +134,7 @@ control.
   implemented.
 - Optional adapters normalize tested dictionary shapes only. They do not prove
   compatibility with full provider SDK runtimes.
+- Runtime permission metadata is treated as context. It is not a policy bypass.
 
 ## Prompt Injection Risk
 

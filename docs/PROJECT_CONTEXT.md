@@ -23,6 +23,11 @@ against policy, optionally ask for human approval, and record the result.
 This makes the project different from a normal AI assistant. The assistant is a
 use case. The gateway is the product.
 
+AgentGate should be positioned as a complement to built-in agent permissions.
+Runtime permissions can decide whether an agent may propose an action. AgentGate
+decides what happens to that proposed action through portable policy, approval,
+and audit records.
+
 ## Target Users
 
 - Developers building local or personal AI agents.
@@ -212,6 +217,10 @@ complement them.
 | Tool protocol | MCP | Policy bridge for tool calls |
 | Personal assistant | ChatGPT, Gemini, Siri | Infrastructure behind a controlled personal-agent demo |
 
+Built-in runtime permission prompts are useful guardrails. AgentGate adds a
+provider-agnostic lifecycle around the proposed action: normalize, decide,
+queue/edit/approve when needed, execute once, and audit.
+
 ## Naming and Language
 
 Use:
@@ -249,4 +258,3 @@ Avoid:
 - The repo clearly communicates that AgentGate is infrastructure, not a
   personal assistant clone.
 - The MVP can be demonstrated locally without API keys.
-

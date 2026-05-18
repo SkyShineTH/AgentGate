@@ -7,6 +7,11 @@ Last updated: 2026-05-09
 AgentGate is a boundary layer between an agent runtime and the tools that can
 create side effects.
 
+It is designed to complement runtime-native permission prompts, not replace
+them. A runtime can decide whether an agent may propose a tool call, while
+AgentGate decides whether that normalized proposed action is allowed, denied,
+or queued for approval before execution.
+
 The core domain model must not depend on provider-native tool-call schemas.
 Provider and framework integrations belong in adapters. The canonical tool
 request format is the internal contract used by policy evaluation, approval,
@@ -173,6 +178,8 @@ Adapters:
 - May depend on OpenAI Agents SDK, LangGraph, MCP SDK, or other frameworks.
 - Must convert external tool-call shapes into the canonical `ToolRequest`.
 - Must not alter core policy behavior.
+- May preserve provider/runtime permission metadata for audit context, but that
+  metadata does not grant permission inside AgentGate.
 
 ## Failure Posture
 

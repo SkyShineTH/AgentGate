@@ -14,6 +14,8 @@ AgentGate demonstrates infrastructure around agent tool use rather than another
 chat interface. The project focuses on the control point before side effects:
 normalize a proposed tool call, evaluate deterministic policy, request human
 approval when needed, execute only approved actions, and record an audit trail.
+It complements built-in agent runtime permissions by adding a portable approval
+and audit lifecycle after a runtime proposes an action.
 
 ## Demo Talking Points
 
@@ -27,6 +29,8 @@ approval when needed, execute only approved actions, and record an audit trail.
 - Audit logs capture policy, approval, and execution lifecycle events.
 - SQLite schema versioning keeps local approval storage inspectable as the MVP
   evolves.
+- Runtime permission metadata can be preserved for context without bypassing
+  AgentGate policy.
 - Optional adapters are kept outside the core policy model.
 
 ## Resume Bullet

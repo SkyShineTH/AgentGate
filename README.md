@@ -12,6 +12,11 @@ turns proposed tool calls into structured requests, evaluates deterministic
 policy, queues sensitive actions for human approval, and records the lifecycle
 in audit logs.
 
+AgentGate complements built-in agent runtime permissions. A runtime may decide
+that an agent is allowed to propose a tool call; AgentGate then evaluates the
+specific proposed action as a portable policy, approval, and audit layer before
+execution.
+
 ## What It Demonstrates
 
 - Scoped tool access for file, shell, and future API-style actions
@@ -126,7 +131,8 @@ agentgate audit list --event-type approval_edited
 Adapter helpers live under `agentgate.adapters` and convert external tool-call
 shapes into the canonical `ToolRequest`. The current OpenAI-style adapter
 accepts plain function-call dictionaries only and does not require or claim full
-OpenAI SDK compatibility.
+OpenAI SDK compatibility. Provider or runtime permission metadata is preserved
+for audit context but does not override AgentGate policy decisions.
 
 ## Architecture
 
