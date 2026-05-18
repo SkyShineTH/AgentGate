@@ -101,3 +101,41 @@ External agent framework -> adapter -> AgentGate policy/approval/audit -> tool
 
 It should not duplicate full orchestration, memory, model routing, or tool
 protocol ecosystems.
+
+## Adapter Handoff Example
+
+The current OpenAI-style adapter accepts a plain function-call dictionary and
+normalizes it to `ToolRequest`. Runtime permission context can be preserved in
+metadata, but AgentGate still makes the policy decision.
+
+```python
+from agentgate.adapters import OpenAIFunctionToolCallAdapter
+from agentgate.policy import PolicyEngine
+
+tool_call = {
+    "id": "call_runtime_allowed",
+    "function": {
+        "name": "agentgate_tool_request",
+        "arguments": {
+            "tool": "file.write",
+            "action": "write",
+            "resource": "examples/workspace/private/runtime-note.txt",
+            "input": {"content": "Synthetic note"},
+            "metadata": {
+                "runtime_permission": "allowed_to_propose",
+                "runtime_permission_scope": "file.write"
+            }
+        }
+    }
+}
+
+request = OpenAIFunctionToolCallAdapter(
+    tool_call,
+    actor="demo-agent",
+).to_tool_request()
+decision = PolicyEngine.default().evaluate(request)
+```
+
+In the default policy, this evaluates to `require_approval` with
+`file_write_requires_approval`. The runtime permission metadata documents that
+the runtime allowed the proposal; it does not grant execution inside AgentGate.
