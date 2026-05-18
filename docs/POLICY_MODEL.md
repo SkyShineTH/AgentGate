@@ -75,7 +75,7 @@ Default behavior should be conservative:
 - Missing policy context denies execution.
 - Write actions require approval.
 - Delete actions are denied.
-- Shell actions are denied unless explicitly enabled in a local demo policy.
+- Shell actions are denied in the MVP.
 - Path traversal attempts are denied.
 - Requests outside configured workspace roots are denied.
 
@@ -95,25 +95,34 @@ Suggested initial rules:
 | `shell_denied_by_default` | any shell execution | `deny` |
 | `secret_input_denied` | likely secret appears in request | `deny` |
 
-## Policy Configuration
+## Policy Profiles
 
-Start with code-defined policies and JSON fixtures. Add YAML policy files only
-when the behavior is stable enough to express declaratively.
+The default policy is code-defined and conservative. The CLI can load an
+optional JSON profile with `--policy-config` for stricter local behavior.
 
-Possible YAML shape:
+Current fields:
 
-```yaml
-version: 1
-defaults:
-  unknown_tool: deny
-  unknown_resource: deny
-rules:
-  - id: public_read_allowed
-    when:
-      tool: file.read
-      resource_prefix: examples/workspace/public
-    decision: allow
-    risk: low
+- `private_read`: `require_approval` or `deny`
+- `file_write`: `require_approval` or `deny`
+- `unknown_tool`: `deny`
+- `unknown_action`: `deny`
+- `shell_execute`: `deny`
+- `file_delete`: `deny`
+
+Profiles intentionally do not allow shell execution, file deletion, unknown
+tools, or unknown actions. Those are deny-only in the MVP.
+
+Example:
+
+```json
+{
+  "private_read": "deny",
+  "file_write": "require_approval",
+  "unknown_tool": "deny",
+  "unknown_action": "deny",
+  "shell_execute": "deny",
+  "file_delete": "deny"
+}
 ```
 
 ## Grants
@@ -140,4 +149,3 @@ Policy behavior changes should be visible:
 - Update docs.
 - Add or update fixtures.
 - Include `policy_version` in audit metadata once policy files exist.
-

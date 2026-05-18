@@ -18,6 +18,7 @@ from agentgate.approvals import (
 from agentgate.audit import AuditLog
 from agentgate.demo import run_personalops_demo
 from agentgate.policy import PolicyEngine
+from agentgate.policy_config import PolicyConfig, PolicyConfigError
 from agentgate.schemas import Decision, DecisionStatus, RiskLevel, ToolRequest
 from agentgate.tools import ToolExecutor
 
@@ -43,6 +44,11 @@ def main() -> None:
 @app.command()
 def check(
     request_json: Path,
+    policy_config: Path | None = typer.Option(
+        None,
+        "--policy-config",
+        help="Optional JSON policy profile path.",
+    ),
     approval_db: Path = typer.Option(
         DEFAULT_APPROVAL_DB,
         "--approval-db",
@@ -67,7 +73,7 @@ def check(
         )
         AuditLog(audit_log).record(event_type="policy_decision", decision=decision)
     else:
-        decision = PolicyEngine.default().evaluate(payload)
+        decision = _policy_engine(policy_config).evaluate(payload)
         request = _parse_request_or_none(payload)
         AuditLog(audit_log).record(
             event_type="policy_decision",
@@ -238,6 +244,11 @@ def edit(
         "--request-id",
         help="Expected request_id guard.",
     ),
+    policy_config: Path | None = typer.Option(
+        None,
+        "--policy-config",
+        help="Optional JSON policy profile path.",
+    ),
     approval_db: Path = typer.Option(
         DEFAULT_APPROVAL_DB,
         "--approval-db",
@@ -259,7 +270,7 @@ def edit(
     if edited_request.request_id != request_id:
         _fail("Edited request_id must match --request-id.")
 
-    edited_decision = PolicyEngine.default().evaluate(edited_request)
+    edited_decision = _policy_engine(policy_config).evaluate(edited_request)
     if edited_decision.status != DecisionStatus.REQUIRE_APPROVAL:
         _fail("Edited request must evaluate to require_approval.")
 
@@ -461,6 +472,16 @@ def _parse_request_or_none(payload: dict[str, Any]) -> ToolRequest | None:
         return ToolRequest.model_validate(payload)
     except ValidationError:
         return None
+
+
+def _policy_engine(policy_config_path: Path | None) -> PolicyEngine:
+    if policy_config_path is None:
+        return PolicyEngine.default()
+    try:
+        config = PolicyConfig.from_json_file(policy_config_path)
+    except PolicyConfigError as exc:
+        _fail(str(exc))
+    return PolicyEngine(config=config)
 
 
 def _echo_json(model: Any) -> None:

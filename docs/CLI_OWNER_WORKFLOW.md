@@ -85,6 +85,12 @@ Create or reuse a pending approval:
 agentgate check examples\requests\write_private_note_requires_approval.json
 ```
 
+Use a stricter local policy profile when needed:
+
+```bat
+agentgate check examples\requests\read_private_file_requires_approval.json --policy-config examples\policy\strict.json
+```
+
 List approvals:
 
 ```bat

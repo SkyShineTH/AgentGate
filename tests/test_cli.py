@@ -48,6 +48,34 @@ def test_check_queues_approval_required_request(tmp_path: Path) -> None:
     ]
 
 
+def test_cli_check_uses_policy_config(tmp_path: Path) -> None:
+    db_path = tmp_path / "approvals.sqlite"
+    audit_path = tmp_path / "audit.jsonl"
+    config_path = tmp_path / "policy.json"
+    config_path.write_text('{"private_read": "deny"}', encoding="utf-8")
+    request_path = ROOT / "examples" / "requests" / "read_private_file_requires_approval.json"
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--policy-config",
+            str(config_path),
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    output = json.loads(result.output)
+    assert output["status"] == "deny"
+    assert output["matched_rule"] == "private_read_denied_by_policy"
+    assert ApprovalQueue(db_path).list() == []
+
+
 def test_cli_audit_list_filters_events(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"

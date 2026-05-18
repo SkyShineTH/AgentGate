@@ -126,6 +126,25 @@ agentgate audit list --approval-id <approval-id>
 agentgate audit list --event-type approval_edited
 ```
 
+## Policy Profiles
+
+AgentGate uses conservative defaults, but `check` and approval edits can load a
+JSON policy profile:
+
+```bash
+agentgate check examples/requests/read_private_file_requires_approval.json \
+  --policy-config examples/policy/strict.json
+```
+
+The current profile supports these fields:
+
+- `private_read`: `require_approval` or `deny`
+- `file_write`: `require_approval` or `deny`
+- `unknown_tool`, `unknown_action`, `shell_execute`, `file_delete`: `deny`
+
+The deny-only fields are explicit so a local profile can document the posture
+without weakening dangerous defaults.
+
 ## Optional Adapters
 
 Adapter helpers live under `agentgate.adapters` and convert external tool-call
