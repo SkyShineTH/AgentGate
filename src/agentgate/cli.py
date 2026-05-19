@@ -16,11 +16,13 @@ from agentgate.approvals import (
     ExecutionStatus,
 )
 from agentgate.audit import AuditLog
+from agentgate.config import AgentGateConfig, AgentGateConfigError
 from agentgate.demo import run_personalops_demo
 from agentgate.policy import PolicyEngine
 from agentgate.policy_config import PolicyConfig, PolicyConfigError
 from agentgate.schemas import Decision, DecisionStatus, RiskLevel, ToolRequest
 from agentgate.tools import ToolExecutor
+from agentgate.workspace import WorkspaceBoundary
 
 app = typer.Typer(add_completion=False, help="AgentGate policy gateway CLI.")
 approvals_app = typer.Typer(help="Manage pending approval requests.")
@@ -33,6 +35,7 @@ app.add_typer(demo_app, name="demo")
 DEFAULT_STATE_DIR = Path(".agentgate")
 DEFAULT_APPROVAL_DB = DEFAULT_STATE_DIR / "approvals.sqlite"
 DEFAULT_AUDIT_LOG = DEFAULT_STATE_DIR / "audit.jsonl"
+DEFAULT_AGENTGATE_CONFIG = Path("agentgate.toml")
 DEFAULT_PERSONALOPS_DEMO_DIR = DEFAULT_STATE_DIR / "personalops-demo"
 
 
@@ -44,10 +47,30 @@ def main() -> None:
 @app.command()
 def check(
     request_json: Path,
+    config: Path | None = typer.Option(
+        None,
+        "--config",
+        help="Optional agentgate.toml profile path.",
+    ),
     policy_config: Path | None = typer.Option(
         None,
         "--policy-config",
-        help="Optional JSON policy profile path.",
+        help="Optional JSON policy profile path. Overrides [policy] in --config.",
+    ),
+    workspace_base: Path | None = typer.Option(
+        None,
+        "--workspace-base",
+        help="Base directory for relative request resources.",
+    ),
+    public_root: Path | None = typer.Option(
+        None,
+        "--public-root",
+        help="Public workspace root for allowed reads.",
+    ),
+    private_root: Path | None = typer.Option(
+        None,
+        "--private-root",
+        help="Private workspace root for approval-gated reads and writes.",
     ),
     approval_db: Path = typer.Option(
         DEFAULT_APPROVAL_DB,
@@ -73,7 +96,13 @@ def check(
         )
         AuditLog(audit_log).record(event_type="policy_decision", decision=decision)
     else:
-        decision = _policy_engine(policy_config).evaluate(payload)
+        decision = _policy_engine(
+            config,
+            policy_config_path=policy_config,
+            workspace_base=workspace_base,
+            public_root=public_root,
+            private_root=private_root,
+        ).evaluate(payload)
         request = _parse_request_or_none(payload)
         AuditLog(audit_log).record(
             event_type="policy_decision",
@@ -283,10 +312,30 @@ def edit(
         "--request-id",
         help="Expected request_id guard.",
     ),
+    config: Path | None = typer.Option(
+        None,
+        "--config",
+        help="Optional agentgate.toml profile path.",
+    ),
     policy_config: Path | None = typer.Option(
         None,
         "--policy-config",
-        help="Optional JSON policy profile path.",
+        help="Optional JSON policy profile path. Overrides [policy] in --config.",
+    ),
+    workspace_base: Path | None = typer.Option(
+        None,
+        "--workspace-base",
+        help="Base directory for relative request resources.",
+    ),
+    public_root: Path | None = typer.Option(
+        None,
+        "--public-root",
+        help="Public workspace root for allowed reads.",
+    ),
+    private_root: Path | None = typer.Option(
+        None,
+        "--private-root",
+        help="Private workspace root for approval-gated reads and writes.",
     ),
     approval_db: Path = typer.Option(
         DEFAULT_APPROVAL_DB,
@@ -309,7 +358,13 @@ def edit(
     if edited_request.request_id != request_id:
         _fail("Edited request_id must match --request-id.")
 
-    edited_decision = _policy_engine(policy_config).evaluate(edited_request)
+    edited_decision = _policy_engine(
+        config,
+        policy_config_path=policy_config,
+        workspace_base=workspace_base,
+        public_root=public_root,
+        private_root=private_root,
+    ).evaluate(edited_request)
     if edited_decision.status != DecisionStatus.REQUIRE_APPROVAL:
         _fail("Edited request must evaluate to require_approval.")
 
@@ -426,6 +481,26 @@ def reject(
 @approvals_app.command()
 def execute(
     approval_id: str,
+    config: Path | None = typer.Option(
+        None,
+        "--config",
+        help="Optional agentgate.toml profile path.",
+    ),
+    workspace_base: Path | None = typer.Option(
+        None,
+        "--workspace-base",
+        help="Base directory for relative request resources.",
+    ),
+    public_root: Path | None = typer.Option(
+        None,
+        "--public-root",
+        help="Public workspace root for allowed reads.",
+    ),
+    private_root: Path | None = typer.Option(
+        None,
+        "--private-root",
+        help="Private workspace root for approval-gated reads and writes.",
+    ),
     approval_db: Path = typer.Option(
         DEFAULT_APPROVAL_DB,
         "--approval-db",
@@ -444,7 +519,13 @@ def execute(
     except (ApprovalNotExecutable, ApprovalNotFound) as exc:
         _fail(str(exc))
 
-    result = ToolExecutor.default().execute(record.request, authorized=True)
+    workspace = _workspace_boundary(
+        config,
+        workspace_base=workspace_base,
+        public_root=public_root,
+        private_root=private_root,
+    )
+    result = ToolExecutor(workspace).execute(record.request, authorized=True)
     execution_status = ExecutionStatus(result.result_status)
     try:
         record = queue.mark_executed(approval_id, result_status=execution_status)
@@ -513,14 +594,126 @@ def _parse_request_or_none(payload: dict[str, Any]) -> ToolRequest | None:
         return None
 
 
-def _policy_engine(policy_config_path: Path | None) -> PolicyEngine:
-    if policy_config_path is None:
-        return PolicyEngine.default()
+def _policy_engine(
+    config_path: Path | None,
+    *,
+    policy_config_path: Path | None = None,
+    workspace_base: Path | None = None,
+    public_root: Path | None = None,
+    private_root: Path | None = None,
+) -> PolicyEngine:
+    profile, profile_path = _load_agentgate_config(config_path)
+    workspace = _workspace_boundary_from_profile(
+        profile,
+        profile_path=profile_path,
+        workspace_base=workspace_base,
+        public_root=public_root,
+        private_root=private_root,
+    )
     try:
-        config = PolicyConfig.from_json_file(policy_config_path)
+        policy_config = (
+            PolicyConfig.from_json_file(policy_config_path)
+            if policy_config_path is not None
+            else profile.policy
+        )
     except PolicyConfigError as exc:
         _fail(str(exc))
-    return PolicyEngine(config=config)
+    return PolicyEngine(workspace=workspace, config=policy_config)
+
+
+def _workspace_boundary(
+    config_path: Path | None,
+    *,
+    workspace_base: Path | None = None,
+    public_root: Path | None = None,
+    private_root: Path | None = None,
+) -> WorkspaceBoundary:
+    profile, profile_path = _load_agentgate_config(config_path)
+    return _workspace_boundary_from_profile(
+        profile,
+        profile_path=profile_path,
+        workspace_base=workspace_base,
+        public_root=public_root,
+        private_root=private_root,
+    )
+
+
+def _load_agentgate_config(
+    config_path: Path | None,
+) -> tuple[AgentGateConfig, Path | None]:
+    if config_path is None:
+        if not DEFAULT_AGENTGATE_CONFIG.exists():
+            return AgentGateConfig(), None
+        config_path = DEFAULT_AGENTGATE_CONFIG
+
+    try:
+        return AgentGateConfig.from_toml_file(config_path), config_path
+    except AgentGateConfigError as exc:
+        _fail(str(exc))
+
+
+def _workspace_boundary_from_profile(
+    profile: AgentGateConfig,
+    *,
+    profile_path: Path | None,
+    workspace_base: Path | None,
+    public_root: Path | None,
+    private_root: Path | None,
+) -> WorkspaceBoundary:
+    workspace_config = profile.workspace
+    has_custom_workspace = any(
+        value is not None
+        for value in (
+            workspace_config.base_dir,
+            workspace_config.public_root,
+            workspace_config.private_root,
+            workspace_base,
+            public_root,
+            private_root,
+        )
+    )
+    if not has_custom_workspace:
+        return WorkspaceBoundary.default()
+
+    profile_origin = profile_path.parent if profile_path is not None else Path.cwd()
+    base_dir = _resolve_path(
+        workspace_base or workspace_config.base_dir or Path.cwd(),
+        origin=Path.cwd() if workspace_base is not None else profile_origin,
+    )
+    resolved_public_root = _resolve_workspace_root(
+        public_root
+        or workspace_config.public_root
+        or Path("examples/workspace/public"),
+        base_dir=base_dir,
+        origin=Path.cwd() if public_root is not None else profile_origin,
+    )
+    resolved_private_root = _resolve_workspace_root(
+        private_root
+        or workspace_config.private_root
+        or Path("examples/workspace/private"),
+        base_dir=base_dir,
+        origin=Path.cwd() if private_root is not None else profile_origin,
+    )
+    return WorkspaceBoundary(
+        base_dir=base_dir,
+        public_root=resolved_public_root,
+        private_root=resolved_private_root,
+    )
+
+
+def _resolve_workspace_root(path: Path, *, base_dir: Path, origin: Path) -> Path:
+    if path.is_absolute():
+        return path
+    origin_candidate = origin / path
+    if origin_candidate.exists():
+        return origin_candidate
+    return base_dir / path
+
+
+def _resolve_path(path: Path, *, origin: Path) -> Path:
+    if path.is_absolute():
+        return path
+    return origin / path
 
 
 def _echo_json(model: Any) -> None:

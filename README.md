@@ -148,6 +148,33 @@ The current profile supports these fields:
 The deny-only fields are explicit so a local profile can document the posture
 without weakening dangerous defaults.
 
+For local workspaces outside the tracked examples, pass workspace roots on the
+CLI:
+
+```bash
+agentgate check request.json \
+  --workspace-base . \
+  --public-root ./public \
+  --private-root ./private
+```
+
+You can also keep workspace and policy defaults in `agentgate.toml`:
+
+```toml
+[workspace]
+base_dir = "."
+public_root = "public"
+private_root = "private"
+
+[policy]
+private_read = "require_approval"
+file_write = "require_approval"
+```
+
+Load it with `--config agentgate.toml`. If `agentgate.toml` exists in the
+current directory, AgentGate loads it automatically. Explicit CLI workspace
+options override `[workspace]`, and `--policy-config` overrides `[policy]`.
+
 ## Optional Adapters
 
 Adapter helpers live under `agentgate.adapters` and convert external tool-call

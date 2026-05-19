@@ -8,10 +8,20 @@ from typer.testing import CliRunner
 from agentgate.approvals import ApprovalQueue, ApprovalStatus
 from agentgate.audit import load_json_lines
 from agentgate.cli import app
-from agentgate.workspace import WorkspaceBoundary
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = CliRunner()
+
+
+def workspace_args(tmp_path: Path) -> list[str]:
+    return [
+        "--workspace-base",
+        str(tmp_path),
+        "--public-root",
+        str(tmp_path / "examples" / "workspace" / "public"),
+        "--private-root",
+        str(tmp_path / "examples" / "workspace" / "private"),
+    ]
 
 
 def test_check_queues_approval_required_request(tmp_path: Path) -> None:
@@ -78,6 +88,98 @@ def test_cli_check_uses_policy_config(tmp_path: Path) -> None:
     assert output["status"] == "deny"
     assert output["matched_rule"] == "private_read_denied_by_policy"
     assert ApprovalQueue(db_path).list() == []
+
+
+def test_cli_check_uses_workspace_root_options(tmp_path: Path) -> None:
+    public_root = tmp_path / "examples" / "workspace" / "public"
+    private_root = tmp_path / "examples" / "workspace" / "private"
+    public_root.mkdir(parents=True)
+    private_root.mkdir(parents=True)
+    (public_root / "local_note.txt").write_text("synthetic note", encoding="utf-8")
+    request_path = tmp_path / "request.json"
+    request_path.write_text(
+        json.dumps(
+            {
+                "request_id": "req_local_public_read",
+                "actor": "demo-agent",
+                "tool": "file.read",
+                "action": "read",
+                "resource": "examples/workspace/public/local_note.txt",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            *workspace_args(tmp_path),
+            "--approval-db",
+            str(tmp_path / "approvals.sqlite"),
+            "--audit-log",
+            str(tmp_path / "audit.jsonl"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    output = json.loads(result.output)
+    assert output["status"] == "allow"
+    assert output["matched_rule"] == "public_read_allowed"
+
+
+def test_cli_check_uses_agentgate_toml_profile(tmp_path: Path) -> None:
+    workspace_root = tmp_path / "workspace"
+    public_root = workspace_root / "public"
+    private_root = workspace_root / "private"
+    public_root.mkdir(parents=True)
+    private_root.mkdir(parents=True)
+    config_path = tmp_path / "agentgate.toml"
+    config_path.write_text(
+        """
+[workspace]
+base_dir = "workspace"
+public_root = "public"
+private_root = "private"
+
+[policy]
+private_read = "deny"
+""".strip(),
+        encoding="utf-8",
+    )
+    request_path = tmp_path / "request.json"
+    request_path.write_text(
+        json.dumps(
+            {
+                "request_id": "req_profile_private_read",
+                "actor": "demo-agent",
+                "tool": "file.read",
+                "action": "read",
+                "resource": "private/local_note.txt",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--config",
+            str(config_path),
+            "--approval-db",
+            str(tmp_path / "approvals.sqlite"),
+            "--audit-log",
+            str(tmp_path / "audit.jsonl"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    output = json.loads(result.output)
+    assert output["status"] == "deny"
+    assert output["matched_rule"] == "private_read_denied_by_policy"
 
 
 def test_cli_audit_list_filters_events(tmp_path: Path) -> None:
@@ -462,22 +564,11 @@ def test_cli_show_includes_current_payload_and_edit_summary(tmp_path: Path) -> N
     assert "previous_request" not in output["edit_history"]["edits"][0]
 
 
-def test_cli_end_to_end_approval_workflow(tmp_path: Path, monkeypatch) -> None:
+def test_cli_end_to_end_approval_workflow(tmp_path: Path) -> None:
     public_root = tmp_path / "examples" / "workspace" / "public"
     private_root = tmp_path / "examples" / "workspace" / "private"
     public_root.mkdir(parents=True)
     private_root.mkdir(parents=True)
-    monkeypatch.setattr(
-        WorkspaceBoundary,
-        "default",
-        classmethod(
-            lambda cls: WorkspaceBoundary(
-                base_dir=tmp_path,
-                public_root=public_root,
-                private_root=private_root,
-            )
-        ),
-    )
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"
     request_payload = {
@@ -497,6 +588,7 @@ def test_cli_end_to_end_approval_workflow(tmp_path: Path, monkeypatch) -> None:
         [
             "check",
             str(request_path),
+            *workspace_args(tmp_path),
             "--approval-db",
             str(db_path),
             "--audit-log",
@@ -543,6 +635,7 @@ def test_cli_end_to_end_approval_workflow(tmp_path: Path, monkeypatch) -> None:
             "req_e2e_write_note",
             "--editor",
             "human-reviewer",
+            *workspace_args(tmp_path),
             "--approval-db",
             str(db_path),
             "--audit-log",
@@ -579,6 +672,7 @@ def test_cli_end_to_end_approval_workflow(tmp_path: Path, monkeypatch) -> None:
             "approvals",
             "execute",
             approval_id,
+            *workspace_args(tmp_path),
             "--approval-db",
             str(db_path),
             "--audit-log",
