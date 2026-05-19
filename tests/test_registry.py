@@ -60,9 +60,24 @@ def test_default_registry_lists_known_file_and_shell_tools() -> None:
 
     assert registry.supports_action("file.read", "read") is True
     assert registry.supports_action("file.write", "create") is True
+    assert registry.supports_action("file.update", "update") is False
     assert registry.supports_action("shell.execute", "execute") is True
     assert registry.get("browser.open") is None
-    assert WRITE_TOOLS == frozenset({"file.write", "file.append", "file.update"})
+    assert WRITE_TOOLS == frozenset({"file.write", "file.append"})
+
+
+def test_file_update_is_unknown_by_default(tmp_path: Path) -> None:
+    decision = PolicyEngine(workspace(tmp_path)).evaluate(
+        request(
+            tool="file.update",
+            action="update",
+            resource="examples/workspace/private/note.txt",
+            input={"content": "synthetic update"},
+        )
+    )
+
+    assert decision.status == DecisionStatus.DENY
+    assert decision.matched_rule == "unknown_tool_denied"
 
 
 def test_policy_uses_injected_registry_for_unknown_tools(tmp_path: Path) -> None:

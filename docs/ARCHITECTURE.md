@@ -136,7 +136,7 @@ Current implementation:
 - Lives in `src/agentgate/registry.py`.
 - Defines `ToolDefinition` and `ToolRegistry`.
 - Provides the default tool catalog for `file.read`, `file.write`,
-  `file.append`, `file.update`, `file.delete`, and `shell.execute`.
+  `file.append`, `file.delete`, and `shell.execute`.
 - Acts as the source of truth for known tool names and supported actions.
 - Can be injected into `PolicyEngine` and `ToolExecutor` for tests or future
   custom tool catalogs.
@@ -213,10 +213,6 @@ tool silently.
 
 ## Current Follow-Ups
 
-- Replace the executor's boolean authorization marker with a typed
-  authorization object tied to the request or approval record.
-- Decide whether `file.update` needs a stricter non-overwrite execution
-  contract.
-- Extend audit redaction to top-level event fields if future resources can
-  contain tokens or credentials.
+- Define a strict `file.update` contract before reintroducing it to the default
+  registry.
 - Define API/MCP resource boundaries before adding network-capable tools.

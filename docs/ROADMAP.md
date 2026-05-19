@@ -236,7 +236,6 @@ Exit criteria:
   guard?
 - Should audit records redact or normalize top-level resource fields in
   addition to payload fields?
-- Should `file.update` get a stricter update contract or be removed until it is
-  implemented distinctly from overwrite?
+- What exact non-overwrite contract should a future `file.update` tool use?
 - Should future API/MCP tool requests use the same workspace profile format or
   a separate resource-boundary model?

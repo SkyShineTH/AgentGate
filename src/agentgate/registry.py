@@ -68,14 +68,6 @@ DEFAULT_TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
         executable=True,
     ),
     ToolDefinition(
-        name="file.update",
-        actions=frozenset({"update"}),
-        default_risk=RiskLevel.MEDIUM,
-        requires_workspace_path=True,
-        has_side_effects=True,
-        executable=True,
-    ),
-    ToolDefinition(
         name="file.delete",
         actions=frozenset({"delete"}),
         default_risk=RiskLevel.CRITICAL,
