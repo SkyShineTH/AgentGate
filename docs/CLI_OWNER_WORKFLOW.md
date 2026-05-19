@@ -186,10 +186,14 @@ Create a combined lifecycle report:
 
 ```bat
 agentgate approvals report <approval-id>
+agentgate audit report --approval-id <approval-id> --format table
 ```
 
 The report includes the current approval record, full edit history, and related
-audit events.
+audit events. The audit report table is the easiest terminal view for a
+reviewer because it shows the request summary, ordered audit events, decision
+trail, approval status, and execution result. For an isolated walkthrough, see
+[Audit lifecycle demo](AUDIT_LIFECYCLE_DEMO.md).
 
 ## 8. Inspect Audit Logs
 

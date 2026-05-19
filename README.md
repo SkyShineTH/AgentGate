@@ -218,7 +218,8 @@ See [Architecture](docs/ARCHITECTURE.md) and
 [Architecture diagram](docs/ARCHITECTURE_DIAGRAM.md).
 
 For a complete local owner walkthrough, see
-[CLI owner workflow](docs/CLI_OWNER_WORKFLOW.md).
+[CLI owner workflow](docs/CLI_OWNER_WORKFLOW.md). For the audit-report demo
+path, see [Audit lifecycle demo](docs/AUDIT_LIFECYCLE_DEMO.md).
 
 ## Security Posture
 
@@ -242,6 +243,7 @@ reporting guidance lives in [Security policy](SECURITY.md).
 - [Project context](docs/PROJECT_CONTEXT.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [CLI owner workflow](docs/CLI_OWNER_WORKFLOW.md)
+- [Audit lifecycle demo](docs/AUDIT_LIFECYCLE_DEMO.md)
 - [Policy model](docs/POLICY_MODEL.md)
 - [Security and privacy](docs/SECURITY_PRIVACY.md)
 - [Threat model walkthrough](docs/THREAT_MODEL_WALKTHROUGH.md)
