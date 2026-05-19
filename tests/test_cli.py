@@ -269,6 +269,65 @@ def test_cli_eval_can_render_table_for_request_directory() -> None:
     assert "Counts: allow=1, require_approval=2, deny=5" in result.output
 
 
+def test_cli_eval_checks_expected_outcomes_manifest() -> None:
+    result = RUNNER.invoke(
+        app,
+        [
+            "eval",
+            "--expectations",
+            str(ROOT / "examples" / "evals" / "default-policy.json"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    output = json.loads(result.output)
+    assert output["expectation_count"] == 12
+    assert output["passed_count"] == 12
+    assert output["failed_count"] == 0
+    assert all(item["passed"] is True for item in output["results"])
+
+
+def test_cli_eval_returns_failure_for_mismatched_expectation(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "expectations.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "name": "mismatch",
+                "cases": [
+                    {
+                        "file": "examples/requests/read_public_file.json",
+                        "status": "deny",
+                        "risk": "high",
+                        "matched_rule": "wrong_rule",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "eval",
+            "--requests-path",
+            str(ROOT / "examples" / "requests" / "read_public_file.json"),
+            "--expectations",
+            str(manifest_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    output = json.loads(result.output)
+    assert output["failed_count"] == 1
+    assert output["results"][0]["passed"] is False
+    assert output["results"][0]["failures"] == [
+        "status expected deny, got allow",
+        "risk expected high, got low",
+        "matched_rule expected wrong_rule, got public_read_allowed",
+    ]
+
+
 def test_cli_audit_list_filters_events(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"

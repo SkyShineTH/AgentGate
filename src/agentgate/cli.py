@@ -54,6 +54,11 @@ class EvalResult(BaseModel):
     risk: str
     matched_rule: str
     reason: str
+    expected_status: str | None = None
+    expected_risk: str | None = None
+    expected_matched_rule: str | None = None
+    passed: bool | None = None
+    failures: list[str] = Field(default_factory=list)
 
 
 class EvalReport(BaseModel):
@@ -61,7 +66,27 @@ class EvalReport(BaseModel):
 
     request_count: int
     counts: dict[str, int] = Field(default_factory=dict)
+    expectation_count: int = 0
+    passed_count: int = 0
+    failed_count: int = 0
     results: list[EvalResult]
+
+
+class EvalExpectation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    file: str
+    status: str
+    risk: str
+    matched_rule: str
+
+
+class EvalExpectationManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    description: str | None = None
+    cases: list[EvalExpectation]
 
 
 @app.callback()
@@ -170,6 +195,11 @@ def eval_requests(
         "--format",
         help="Output format: json or table.",
     ),
+    expectations: Path | None = typer.Option(
+        None,
+        "--expectations",
+        help="Optional eval expectation manifest JSON path.",
+    ),
     config: Path | None = typer.Option(
         None,
         "--config",
@@ -211,20 +241,31 @@ def eval_requests(
     if not request_files:
         _fail(f"No request JSON files found under {requests_path}.")
 
+    expectation_index = _load_eval_expectations(expectations)
     results = []
     for request_file in request_files:
         result = _evaluate_request_file(engine, request_file)
+        _apply_eval_expectation(
+            result, expectation_index.get(_eval_path_key(request_file))
+        )
         results.append(result)
 
     report = EvalReport(
         request_count=len(results),
         counts=_decision_counts(results),
+        expectation_count=len(expectation_index),
+        passed_count=sum(result.passed is True for result in results),
+        failed_count=sum(result.passed is False for result in results),
         results=results,
     )
     if output_format == "table":
         _echo_eval_table(report)
+        if report.failed_count:
+            raise typer.Exit(code=1)
         return
     _echo_json(report)
+    if report.failed_count:
+        raise typer.Exit(code=1)
 
 
 @audit_app.command("list")
@@ -744,6 +785,55 @@ def _evaluate_request_file(engine: PolicyEngine, path: Path) -> EvalResult:
     )
 
 
+def _load_eval_expectations(path: Path | None) -> dict[str, EvalExpectation]:
+    if path is None:
+        return {}
+    try:
+        payload = _load_json(path)
+        manifest = EvalExpectationManifest.model_validate(payload)
+    except (ValueError, ValidationError) as exc:
+        _fail(f"Invalid eval expectations: {exc}")
+
+    expectations: dict[str, EvalExpectation] = {}
+    for case in manifest.cases:
+        expectation_path = Path(case.file)
+        if expectation_path.is_absolute():
+            resolved = expectation_path
+        else:
+            resolved = Path.cwd() / expectation_path
+        expectations[_eval_path_key(resolved)] = case
+    return expectations
+
+
+def _apply_eval_expectation(
+    result: EvalResult,
+    expectation: EvalExpectation | None,
+) -> None:
+    if expectation is None:
+        return
+
+    failures = []
+    if result.status != expectation.status:
+        failures.append(f"status expected {expectation.status}, got {result.status}")
+    if result.risk != expectation.risk:
+        failures.append(f"risk expected {expectation.risk}, got {result.risk}")
+    if result.matched_rule != expectation.matched_rule:
+        failures.append(
+            f"matched_rule expected {expectation.matched_rule}, "
+            f"got {result.matched_rule}"
+        )
+
+    result.expected_status = expectation.status
+    result.expected_risk = expectation.risk
+    result.expected_matched_rule = expectation.matched_rule
+    result.failures = failures
+    result.passed = not failures
+
+
+def _eval_path_key(path: Path) -> str:
+    return str(path.resolve(strict=False)).replace("\\", "/")
+
+
 def _metadata_value(request: ToolRequest | None, key: str) -> str | None:
     if request is None:
         return None
@@ -765,6 +855,7 @@ def _decision_counts(results: list[EvalResult]) -> dict[str, int]:
 def _echo_eval_table(report: EvalReport) -> None:
     rows = [
         (
+            _eval_pass_label(result),
             result.status,
             result.risk,
             result.matched_rule,
@@ -773,7 +864,7 @@ def _echo_eval_table(report: EvalReport) -> None:
         )
         for result in report.results
     ]
-    headers = ("STATUS", "RISK", "RULE", "REQUEST_ID", "FILE")
+    headers = ("PASS", "STATUS", "RISK", "RULE", "REQUEST_ID", "FILE")
     widths = [
         max(len(str(row[index])) for row in [headers, *rows])
         for index in range(len(headers))
@@ -791,7 +882,22 @@ def _echo_eval_table(report: EvalReport) -> None:
         "Counts: "
         + ", ".join(f"{status}={count}" for status, count in report.counts.items())
     )
+    if report.expectation_count:
+        lines.append(
+            "Expectations: "
+            f"checked={report.expectation_count}, "
+            f"passed={report.passed_count}, "
+            f"failed={report.failed_count}"
+        )
     typer.echo("\n".join(lines))
+
+
+def _eval_pass_label(result: EvalResult) -> str:
+    if result.passed is True:
+        return "pass"
+    if result.passed is False:
+        return "fail"
+    return "-"
 
 
 def _parse_request_or_none(payload: dict[str, Any]) -> ToolRequest | None:

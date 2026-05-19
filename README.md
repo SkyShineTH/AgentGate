@@ -74,6 +74,13 @@ agentgate eval --format table
 This evaluates the tracked example requests without creating approvals or
 executing tools.
 
+To turn the examples into a regression eval, compare them with the checked-in
+expected outcomes:
+
+```bash
+agentgate eval --expectations examples/evals/default-policy.json
+```
+
 ## Approval Flow
 
 Approval-required decisions are stored in a local SQLite queue under

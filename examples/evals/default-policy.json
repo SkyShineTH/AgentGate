@@ -1,0 +1,78 @@
+{
+  "name": "default-policy",
+  "description": "Expected decisions for tracked synthetic request fixtures under the default AgentGate policy.",
+  "cases": [
+    {
+      "file": "examples/requests/read_public_file.json",
+      "status": "allow",
+      "risk": "low",
+      "matched_rule": "public_read_allowed"
+    },
+    {
+      "file": "examples/requests/read_private_file_requires_approval.json",
+      "status": "require_approval",
+      "risk": "medium",
+      "matched_rule": "private_read_requires_approval"
+    },
+    {
+      "file": "examples/requests/write_private_note_requires_approval.json",
+      "status": "require_approval",
+      "risk": "medium",
+      "matched_rule": "file_write_requires_approval"
+    },
+    {
+      "file": "examples/requests/delete_file_denied.json",
+      "status": "deny",
+      "risk": "critical",
+      "matched_rule": "delete_denied"
+    },
+    {
+      "file": "examples/requests/path_traversal_denied.json",
+      "status": "deny",
+      "risk": "high",
+      "matched_rule": "path_traversal_denied"
+    },
+    {
+      "file": "examples/requests/shell_denied.json",
+      "status": "deny",
+      "risk": "high",
+      "matched_rule": "shell_denied_by_default"
+    },
+    {
+      "file": "examples/requests/unknown_tool_denied.json",
+      "status": "deny",
+      "risk": "high",
+      "matched_rule": "unknown_tool_denied"
+    },
+    {
+      "file": "examples/requests/secret_input_denied.json",
+      "status": "deny",
+      "risk": "critical",
+      "matched_rule": "secret_input_denied"
+    },
+    {
+      "file": "examples/personalops/requests/read_public_job_plan.json",
+      "status": "allow",
+      "risk": "low",
+      "matched_rule": "public_read_allowed"
+    },
+    {
+      "file": "examples/personalops/requests/append_private_job_tracker_requires_approval.json",
+      "status": "require_approval",
+      "risk": "medium",
+      "matched_rule": "file_write_requires_approval"
+    },
+    {
+      "file": "examples/personalops/requests/delete_private_job_tracker_denied.json",
+      "status": "deny",
+      "risk": "critical",
+      "matched_rule": "delete_denied"
+    },
+    {
+      "file": "examples/personalops/requests/shell_command_denied.json",
+      "status": "deny",
+      "risk": "high",
+      "matched_rule": "shell_denied_by_default"
+    }
+  ]
+}
