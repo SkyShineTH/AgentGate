@@ -28,6 +28,7 @@ class AuditEvent(BaseModel):
     action: str | None = None
     resource: str | None = None
     decision: str | None = None
+    risk: str | None = None
     reason: str | None = None
     matched_rule: str | None = None
     approval_id: str | None = None
@@ -57,6 +58,7 @@ class AuditLog:
             action=request.action if request else None,
             resource=self._resource(request),
             decision=decision.status.value if decision else None,
+            risk=decision.risk.value if decision else None,
             reason=decision.reason if decision else None,
             matched_rule=decision.matched_rule if decision else None,
             approval_id=approval_id or (decision.approval_id if decision else None),

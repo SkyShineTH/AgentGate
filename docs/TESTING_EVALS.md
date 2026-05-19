@@ -48,6 +48,8 @@ Required cases:
 - shell denied by default
 - path traversal denied
 - absolute path outside workspace denied
+- Windows backslash, absolute inside/outside, drive-relative, and
+  case-normalization path cases
 - unknown tool denied
 - malformed request denied
 - likely secret denied or redacted

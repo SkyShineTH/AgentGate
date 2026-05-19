@@ -53,6 +53,9 @@ Current non-boundaries:
 | Local audit or SQLite tampering | Approval and audit records are structured and inspectable, with SQLite schema versioning for the approval store. | approval persistence, edit history, and schema version tests | Local users with filesystem access can modify or delete local state files. |
 | Prompt injection causing unsafe tool calls | Policy enforcement happens outside prompts; state-changing file actions require approval and deletes/shell are denied by default. | policy, approval, and denied-action tests | AgentGate does not classify arbitrary document content as safe or unsafe. |
 
+For a concrete local scenario walkthrough, see
+[Threat model walkthrough](THREAT_MODEL_WALKTHROUGH.md).
+
 ## What AgentGate Can Help With
 
 - Making tool permissions explicit and testable.

@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
+import pytest
+
 from agentgate.workspace import WorkspaceBoundary, WorkspaceKind
+
+WINDOWS_ONLY = pytest.mark.skipif(
+    os.name != "nt",
+    reason="Windows-specific path parsing.",
+)
 
 
 def workspace_boundary(tmp_path: Path) -> WorkspaceBoundary:
@@ -59,6 +67,61 @@ def test_allows_absolute_path_inside_public_workspace(tmp_path: Path) -> None:
     inside = tmp_path / "examples" / "workspace" / "public" / "note.txt"
 
     result = boundary.resolve(str(inside))
+
+    assert result.allowed is True
+    assert result.workspace_kind == WorkspaceKind.PUBLIC
+
+
+@WINDOWS_ONLY
+def test_windows_allows_backslash_public_path(tmp_path: Path) -> None:
+    boundary = workspace_boundary(tmp_path)
+
+    result = boundary.resolve(r"examples\workspace\public\note.txt")
+
+    assert result.allowed is True
+    assert result.workspace_kind == WorkspaceKind.PUBLIC
+
+
+@WINDOWS_ONLY
+def test_windows_allows_absolute_path_inside_public_workspace(
+    tmp_path: Path,
+) -> None:
+    boundary = workspace_boundary(tmp_path)
+    inside = tmp_path / "examples" / "workspace" / "public" / "note.txt"
+
+    result = boundary.resolve(str(inside))
+
+    assert result.allowed is True
+    assert result.workspace_kind == WorkspaceKind.PUBLIC
+
+
+@WINDOWS_ONLY
+def test_windows_denies_absolute_path_outside_workspace(tmp_path: Path) -> None:
+    boundary = workspace_boundary(tmp_path)
+    outside = tmp_path.parent / "outside" / "note.txt"
+
+    result = boundary.resolve(str(outside))
+
+    assert result.allowed is False
+    assert result.matched_rule == "path_outside_workspace_denied"
+
+
+@WINDOWS_ONLY
+def test_windows_denies_drive_relative_path(tmp_path: Path) -> None:
+    boundary = workspace_boundary(tmp_path)
+
+    result = boundary.resolve(f"{tmp_path.drive}examples\\workspace\\public\\note.txt")
+
+    assert result.allowed is False
+    assert result.matched_rule == "path_outside_workspace_denied"
+
+
+@WINDOWS_ONLY
+def test_windows_root_matching_is_case_insensitive(tmp_path: Path) -> None:
+    boundary = workspace_boundary(tmp_path)
+    resource = str(tmp_path / "EXAMPLES" / "WORKSPACE" / "PUBLIC" / "note.txt")
+
+    result = boundary.resolve(resource)
 
     assert result.allowed is True
     assert result.workspace_kind == WorkspaceKind.PUBLIC

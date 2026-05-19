@@ -54,6 +54,7 @@ def test_audit_log_appends_jsonl_events(tmp_path: Path) -> None:
     assert all(line["event_id"].startswith("evt_") for line in lines)
     assert lines[0]["request_id"] == "req_audit"
     assert lines[0]["decision"] == "require_approval"
+    assert lines[0]["risk"] == "medium"
     assert lines[1]["approval_id"] == "appr_audit"
 
 

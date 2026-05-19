@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +23,7 @@ from agentgate.demo import run_personalops_demo
 from agentgate.policy import PolicyEngine
 from agentgate.policy_config import PolicyConfig, PolicyConfigError
 from agentgate.schemas import Decision, DecisionStatus, RiskLevel, ToolRequest
+from agentgate.secrets import redact
 from agentgate.tools import ExecutionAuthorization, ToolExecutor
 from agentgate.workspace import WorkspaceBoundary
 
@@ -38,6 +41,18 @@ DEFAULT_AUDIT_LOG = DEFAULT_STATE_DIR / "audit.jsonl"
 DEFAULT_AGENTGATE_CONFIG = Path("agentgate.toml")
 DEFAULT_EVAL_ROOT = Path("examples")
 DEFAULT_PERSONALOPS_DEMO_DIR = DEFAULT_STATE_DIR / "personalops-demo"
+
+
+@dataclass(frozen=True)
+class PolicyRuntime:
+    engine: PolicyEngine
+    audit_payload: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class WorkspaceRuntime:
+    workspace: WorkspaceBoundary
+    audit_payload: dict[str, Any]
 
 
 class EvalResult(BaseModel):
@@ -87,6 +102,67 @@ class EvalExpectationManifest(BaseModel):
     name: str
     description: str | None = None
     cases: list[EvalExpectation]
+
+
+class AuditRequestSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_id: str
+    actor: str | None = None
+    tool: str | None = None
+    action: str | None = None
+    resource: str | None = None
+    approval_ids: list[str] = Field(default_factory=list)
+    event_count: int
+    first_event_at: datetime | None = None
+    last_event_at: datetime | None = None
+
+
+class AuditDecisionTrailEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str
+    timestamp: datetime
+    event_type: str
+    decision: str
+    risk: str | None = None
+    reason: str | None = None
+    matched_rule: str | None = None
+    approval_id: str | None = None
+
+
+class AuditApprovalStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    approval_id: str
+    request_id: str
+    status: str
+    execution_status: str
+    decided_by: str | None = None
+    decision_reason: str | None = None
+    created_at: datetime
+    decided_at: datetime | None = None
+    executed_at: datetime | None = None
+
+
+class AuditExecutionResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event_id: str
+    timestamp: datetime
+    approval_id: str | None = None
+    result_status: str
+    result: dict[str, Any] | None = None
+
+
+class AuditLifecycleReport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_summary: AuditRequestSummary
+    audit_events: list[dict[str, Any]]
+    decision_trail: list[AuditDecisionTrailEntry]
+    approvals: list[AuditApprovalStatus] = Field(default_factory=list)
+    execution_result: AuditExecutionResult | None = None
 
 
 @app.callback()
@@ -146,19 +222,20 @@ def check(
         )
         AuditLog(audit_log).record(event_type="policy_decision", decision=decision)
     else:
-        decision = _policy_engine(
+        runtime = _policy_runtime(
             config,
             policy_config_path=policy_config,
             workspace_base=workspace_base,
             public_root=public_root,
             private_root=private_root,
-        ).evaluate(payload)
+        )
+        decision = runtime.engine.evaluate(payload)
         request = _parse_request_or_none(payload)
         AuditLog(audit_log).record(
             event_type="policy_decision",
             request=request,
             decision=decision,
-            payload={"request": payload},
+            payload={"request": payload, **runtime.audit_payload},
         )
         if request and decision.status == DecisionStatus.REQUIRE_APPROVAL:
             pending = ApprovalQueue(approval_db).create_pending_result(
@@ -173,6 +250,7 @@ def check(
                 request=record.request,
                 decision=record.decision,
                 approval_id=record.approval_id,
+                payload=runtime.audit_payload,
             )
 
     _echo_json(decision)
@@ -230,13 +308,13 @@ def eval_requests(
     if output_format not in {"json", "table"}:
         _fail("--format must be 'json' or 'table'.")
 
-    engine = _policy_engine(
+    engine = _policy_runtime(
         config,
         policy_config_path=policy_config,
         workspace_base=workspace_base,
         public_root=public_root,
         private_root=private_root,
-    )
+    ).engine
     request_files = _collect_eval_request_files(requests_path, recursive=recursive)
     if not request_files:
         _fail(f"No request JSON files found under {requests_path}.")
@@ -303,6 +381,66 @@ def list_audit_events(
             indent=2,
         )
     )
+
+
+@audit_app.command("report")
+def audit_report(
+    request_id: str | None = typer.Option(
+        None,
+        "--request-id",
+        help="Build a lifecycle report for this request_id.",
+    ),
+    approval_id: str | None = typer.Option(
+        None,
+        "--approval-id",
+        help="Build a lifecycle report for this approval_id.",
+    ),
+    approval_db: Path = typer.Option(
+        DEFAULT_APPROVAL_DB,
+        "--approval-db",
+        help="SQLite approval queue path.",
+    ),
+    audit_log: Path = typer.Option(
+        DEFAULT_AUDIT_LOG,
+        "--audit-log",
+        help="JSONL audit log path.",
+    ),
+) -> None:
+    """Show request, decision, approval, and execution audit lifecycle."""
+    if request_id is None and approval_id is None:
+        _fail("Provide --request-id or --approval-id.")
+
+    approval_records = []
+    if approval_db.exists():
+        approval_records = _approval_records_for_report(
+            ApprovalQueue(approval_db),
+            request_id=request_id,
+            approval_id=approval_id,
+        )
+    if request_id is None and approval_records:
+        request_id = approval_records[0].request_id
+
+    events = _audit_events_for_lifecycle(
+        AuditLog(audit_log),
+        request_id=request_id,
+        approval_id=approval_id,
+    )
+    if not events and not approval_records:
+        _fail("No audit events or approval records matched the report filters.")
+
+    report = AuditLifecycleReport(
+        request_summary=_audit_request_summary(
+            events,
+            approval_records,
+            request_id=request_id,
+            approval_id=approval_id,
+        ),
+        audit_events=[event.model_dump(mode="json") for event in events],
+        decision_trail=_audit_decision_trail(events),
+        approvals=_audit_approval_statuses(approval_records),
+        execution_result=_audit_execution_result(events),
+    )
+    _echo_json(report)
 
 
 @approvals_app.command("list")
@@ -503,13 +641,14 @@ def edit(
     if edited_request.request_id != request_id:
         _fail("Edited request_id must match --request-id.")
 
-    edited_decision = _policy_engine(
+    runtime = _policy_runtime(
         config,
         policy_config_path=policy_config,
         workspace_base=workspace_base,
         public_root=public_root,
         private_root=private_root,
-    ).evaluate(edited_request)
+    )
+    edited_decision = runtime.engine.evaluate(edited_request)
     if edited_decision.status != DecisionStatus.REQUIRE_APPROVAL:
         _fail("Edited request must evaluate to require_approval.")
 
@@ -534,6 +673,7 @@ def edit(
             "edited_by": editor,
             "edit_reason": reason,
             "request": record.request.model_dump(mode="json"),
+            **runtime.audit_payload,
         },
     )
     _echo_json(record)
@@ -664,14 +804,14 @@ def execute(
     except (ApprovalNotExecutable, ApprovalNotFound) as exc:
         _fail(str(exc))
 
-    workspace = _workspace_boundary(
+    runtime = _workspace_runtime(
         config,
         workspace_base=workspace_base,
         public_root=public_root,
         private_root=private_root,
     )
     authorization = ExecutionAuthorization.from_approval_claim(record)
-    result = ToolExecutor(workspace).execute(
+    result = ToolExecutor(runtime.workspace).execute(
         record.request,
         authorization=authorization,
     )
@@ -687,7 +827,7 @@ def execute(
         decision=record.decision,
         approval_id=record.approval_id,
         result_status=result.result_status,
-        payload={"result": result.model_dump(mode="json")},
+        payload={"result": result.model_dump(mode="json"), **runtime.audit_payload},
     )
     _echo_json(result)
 
@@ -915,8 +1055,25 @@ def _policy_engine(
     public_root: Path | None = None,
     private_root: Path | None = None,
 ) -> PolicyEngine:
+    return _policy_runtime(
+        config_path,
+        policy_config_path=policy_config_path,
+        workspace_base=workspace_base,
+        public_root=public_root,
+        private_root=private_root,
+    ).engine
+
+
+def _policy_runtime(
+    config_path: Path | None,
+    *,
+    policy_config_path: Path | None = None,
+    workspace_base: Path | None = None,
+    public_root: Path | None = None,
+    private_root: Path | None = None,
+) -> PolicyRuntime:
     profile, profile_path = _load_agentgate_config(config_path)
-    workspace = _workspace_boundary_from_profile(
+    workspace_runtime = _workspace_runtime_from_profile(
         profile,
         profile_path=profile_path,
         workspace_base=workspace_base,
@@ -931,7 +1088,18 @@ def _policy_engine(
         )
     except PolicyConfigError as exc:
         _fail(str(exc))
-    return PolicyEngine(workspace=workspace, config=policy_config)
+    policy_source, policy_path = _policy_source(profile_path, policy_config_path)
+    return PolicyRuntime(
+        engine=PolicyEngine(
+            workspace=workspace_runtime.workspace,
+            config=policy_config,
+        ),
+        audit_payload={
+            "policy_source": policy_source,
+            **_optional_path_payload("policy_path", policy_path),
+            **workspace_runtime.audit_payload,
+        },
+    )
 
 
 def _workspace_boundary(
@@ -941,8 +1109,23 @@ def _workspace_boundary(
     public_root: Path | None = None,
     private_root: Path | None = None,
 ) -> WorkspaceBoundary:
+    return _workspace_runtime(
+        config_path,
+        workspace_base=workspace_base,
+        public_root=public_root,
+        private_root=private_root,
+    ).workspace
+
+
+def _workspace_runtime(
+    config_path: Path | None,
+    *,
+    workspace_base: Path | None = None,
+    public_root: Path | None = None,
+    private_root: Path | None = None,
+) -> WorkspaceRuntime:
     profile, profile_path = _load_agentgate_config(config_path)
-    return _workspace_boundary_from_profile(
+    return _workspace_runtime_from_profile(
         profile,
         profile_path=profile_path,
         workspace_base=workspace_base,
@@ -973,6 +1156,23 @@ def _workspace_boundary_from_profile(
     public_root: Path | None,
     private_root: Path | None,
 ) -> WorkspaceBoundary:
+    return _workspace_runtime_from_profile(
+        profile,
+        profile_path=profile_path,
+        workspace_base=workspace_base,
+        public_root=public_root,
+        private_root=private_root,
+    ).workspace
+
+
+def _workspace_runtime_from_profile(
+    profile: AgentGateConfig,
+    *,
+    profile_path: Path | None,
+    workspace_base: Path | None,
+    public_root: Path | None,
+    private_root: Path | None,
+) -> WorkspaceRuntime:
     workspace_config = profile.workspace
     has_custom_workspace = any(
         value is not None
@@ -986,7 +1186,15 @@ def _workspace_boundary_from_profile(
         )
     )
     if not has_custom_workspace:
-        return WorkspaceBoundary.default()
+        workspace = WorkspaceBoundary.default()
+        return WorkspaceRuntime(
+            workspace=workspace,
+            audit_payload=_workspace_audit_payload(
+                source="default",
+                source_path=None,
+                workspace=workspace,
+            ),
+        )
 
     profile_origin = profile_path.parent if profile_path is not None else Path.cwd()
     base_dir = _resolve_path(
@@ -1007,10 +1215,25 @@ def _workspace_boundary_from_profile(
         base_dir=base_dir,
         origin=Path.cwd() if private_root is not None else profile_origin,
     )
-    return WorkspaceBoundary(
+    workspace = WorkspaceBoundary(
         base_dir=base_dir,
         public_root=resolved_public_root,
         private_root=resolved_private_root,
+    )
+    workspace_source, workspace_path = _workspace_source(
+        profile,
+        profile_path=profile_path,
+        workspace_base=workspace_base,
+        public_root=public_root,
+        private_root=private_root,
+    )
+    return WorkspaceRuntime(
+        workspace=workspace,
+        audit_payload=_workspace_audit_payload(
+            source=workspace_source,
+            source_path=workspace_path,
+            workspace=workspace,
+        ),
     )
 
 
@@ -1027,6 +1250,67 @@ def _resolve_path(path: Path, *, origin: Path) -> Path:
     if path.is_absolute():
         return path
     return origin / path
+
+
+def _policy_source(
+    profile_path: Path | None,
+    policy_config_path: Path | None,
+) -> tuple[str, Path | None]:
+    if policy_config_path is not None:
+        return "policy_config", policy_config_path
+    if profile_path is not None:
+        return "agentgate.toml", profile_path
+    return "default", None
+
+
+def _workspace_source(
+    profile: AgentGateConfig,
+    *,
+    profile_path: Path | None,
+    workspace_base: Path | None,
+    public_root: Path | None,
+    private_root: Path | None,
+) -> tuple[str, Path | None]:
+    if any(value is not None for value in (workspace_base, public_root, private_root)):
+        return "cli", None
+    if profile_path is not None and any(
+        value is not None
+        for value in (
+            profile.workspace.base_dir,
+            profile.workspace.public_root,
+            profile.workspace.private_root,
+        )
+    ):
+        return "agentgate.toml", profile_path
+    return "default", None
+
+
+def _workspace_audit_payload(
+    *,
+    source: str,
+    source_path: Path | None,
+    workspace: WorkspaceBoundary,
+) -> dict[str, Any]:
+    return {
+        "workspace_source": source,
+        **_optional_path_payload("workspace_path", source_path),
+        "workspace_roots": {
+            "base_dir": _redacted_path(workspace.base_dir),
+            "public_root": _redacted_path(workspace.public_root),
+            "private_root": _redacted_path(workspace.private_root),
+        },
+    }
+
+
+def _optional_path_payload(key: str, path: Path | None) -> dict[str, str]:
+    if path is None:
+        return {}
+    return {key: _redacted_path(path)}
+
+
+def _redacted_path(path: Path) -> str:
+    redacted = redact(str(path.resolve(strict=False)))
+    return redacted if isinstance(redacted, str) else "[REDACTED]"
 
 
 def _echo_json(model: Any) -> None:
@@ -1048,6 +1332,137 @@ def _edit_history_summary(edits: list[Any]) -> dict[str, Any]:
     }
 
 
+def _approval_records_for_report(
+    queue: ApprovalQueue,
+    *,
+    request_id: str | None,
+    approval_id: str | None,
+) -> list[Any]:
+    records = []
+    if request_id is not None:
+        records.extend(queue.list(request_id=request_id))
+    if approval_id is not None:
+        try:
+            records.append(queue.get(approval_id))
+        except ApprovalNotFound:
+            pass
+
+    seen: set[str] = set()
+    unique_records = []
+    for record in records:
+        if record.approval_id in seen:
+            continue
+        seen.add(record.approval_id)
+        unique_records.append(record)
+    return unique_records
+
+
+def _audit_events_for_lifecycle(
+    audit: AuditLog,
+    *,
+    request_id: str | None,
+    approval_id: str | None,
+) -> list[Any]:
+    events = []
+    if request_id is not None:
+        events.extend(audit.list_events(request_id=request_id))
+    if approval_id is not None:
+        events.extend(audit.list_events(approval_id=approval_id))
+    return _unique_ordered_audit_events(events)
+
+
+def _audit_request_summary(
+    events: list[Any],
+    approval_records: list[Any],
+    *,
+    request_id: str | None,
+    approval_id: str | None,
+) -> AuditRequestSummary:
+    event = next((item for item in events if item.actor or item.tool), None)
+    record = approval_records[0] if approval_records else None
+    approval_ids = sorted(
+        {
+            item
+            for item in [
+                approval_id,
+                *(event.approval_id for event in events),
+                *(record.approval_id for record in approval_records),
+            ]
+            if item is not None
+        }
+    )
+    return AuditRequestSummary(
+        request_id=(
+            request_id
+            or (event.request_id if event else None)
+            or (record.request_id if record else None)
+            or "req_unknown"
+        ),
+        actor=(event.actor if event else None)
+        or (record.request.actor if record else None),
+        tool=(event.tool if event else None)
+        or (record.request.tool if record else None),
+        action=(event.action if event else None)
+        or (record.request.action if record else None),
+        resource=(event.resource if event else None)
+        or (_redacted_value(record.request.resource) if record else None),
+        approval_ids=approval_ids,
+        event_count=len(events),
+        first_event_at=events[0].timestamp if events else None,
+        last_event_at=events[-1].timestamp if events else None,
+    )
+
+
+def _audit_decision_trail(events: list[Any]) -> list[AuditDecisionTrailEntry]:
+    return [
+        AuditDecisionTrailEntry(
+            event_id=event.event_id,
+            timestamp=event.timestamp,
+            event_type=event.event_type,
+            decision=event.decision,
+            risk=event.risk,
+            reason=event.reason,
+            matched_rule=event.matched_rule,
+            approval_id=event.approval_id,
+        )
+        for event in events
+        if event.decision is not None
+    ]
+
+
+def _audit_approval_statuses(records: list[Any]) -> list[AuditApprovalStatus]:
+    return [
+        AuditApprovalStatus(
+            approval_id=record.approval_id,
+            request_id=record.request_id,
+            status=record.status.value,
+            execution_status=record.execution_status.value,
+            decided_by=record.decided_by,
+            decision_reason=record.decision_reason,
+            created_at=record.created_at,
+            decided_at=record.decided_at,
+            executed_at=record.executed_at,
+        )
+        for record in records
+    ]
+
+
+def _audit_execution_result(events: list[Any]) -> AuditExecutionResult | None:
+    executed_events = [event for event in events if event.result_status is not None]
+    if not executed_events:
+        return None
+
+    event = executed_events[-1]
+    result = event.payload.get("result")
+    return AuditExecutionResult(
+        event_id=event.event_id,
+        timestamp=event.timestamp,
+        approval_id=event.approval_id,
+        result_status=event.result_status,
+        result=result if isinstance(result, dict) else None,
+    )
+
+
 def _audit_events_for_approval(
     audit: AuditLog,
     *,
@@ -1065,7 +1480,23 @@ def _audit_events_for_approval(
             continue
         seen.add(event.event_id)
         unique_events.append(event)
-    return unique_events
+    return _unique_ordered_audit_events(unique_events)
+
+
+def _unique_ordered_audit_events(events: list[Any]) -> list[Any]:
+    seen: set[str] = set()
+    unique_events = []
+    for event in events:
+        if event.event_id in seen:
+            continue
+        seen.add(event.event_id)
+        unique_events.append(event)
+    return sorted(unique_events, key=lambda event: event.timestamp)
+
+
+def _redacted_value(value: Any) -> Any:
+    redacted = redact(value)
+    return redacted if isinstance(redacted, str) else "[REDACTED]"
 
 
 def _fail(message: str) -> None:

@@ -59,6 +59,12 @@ class WorkspaceBoundary:
             )
 
         raw_path = Path(resource)
+        if raw_path.drive and not raw_path.is_absolute():
+            return self._denied(
+                resource=resource,
+                reason="Drive-relative paths are not allowed.",
+                matched_rule="path_outside_workspace_denied",
+            )
         if ".." in raw_path.parts:
             return self._denied(
                 resource=resource,

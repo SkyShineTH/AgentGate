@@ -58,6 +58,8 @@ def test_check_queues_approval_required_request(tmp_path: Path) -> None:
         "policy_decision",
         "approval_created",
     ]
+    assert events[0]["payload"]["policy_source"] == "default"
+    assert events[0]["payload"]["workspace_source"] == "default"
 
 
 def test_check_logs_existing_approval_for_duplicate_pending_request(
@@ -226,6 +228,66 @@ private_read = "deny"
     output = json.loads(result.output)
     assert output["status"] == "deny"
     assert output["matched_rule"] == "private_read_denied_by_policy"
+
+
+def test_cli_check_records_profile_sources_in_audit_payload(tmp_path: Path) -> None:
+    workspace_root = tmp_path / "workspace"
+    public_root = workspace_root / "public"
+    private_root = workspace_root / "private"
+    public_root.mkdir(parents=True)
+    private_root.mkdir(parents=True)
+    config_path = tmp_path / "agentgate.toml"
+    config_path.write_text(
+        """
+[workspace]
+base_dir = "workspace"
+public_root = "public"
+private_root = "private"
+""".strip(),
+        encoding="utf-8",
+    )
+    policy_path = tmp_path / "strict.json"
+    policy_path.write_text('{"private_read": "deny"}', encoding="utf-8")
+    request_path = tmp_path / "request.json"
+    request_path.write_text(
+        json.dumps(
+            {
+                "request_id": "req_profile_source",
+                "actor": "demo-agent",
+                "tool": "file.read",
+                "action": "read",
+                "resource": "private/local_note.txt",
+            }
+        ),
+        encoding="utf-8",
+    )
+    audit_path = tmp_path / "audit.jsonl"
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--config",
+            str(config_path),
+            "--policy-config",
+            str(policy_path),
+            "--approval-db",
+            str(tmp_path / "approvals.sqlite"),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    event = load_json_lines(audit_path)[0]
+    payload = event["payload"]
+    assert payload["policy_source"] == "policy_config"
+    assert payload["policy_path"].endswith("strict.json")
+    assert payload["workspace_source"] == "agentgate.toml"
+    assert payload["workspace_path"].endswith("agentgate.toml")
+    private_root = payload["workspace_roots"]["private_root"].replace("\\", "/")
+    assert private_root.endswith("workspace/private")
 
 
 def test_cli_eval_reports_all_example_requests() -> None:
@@ -837,10 +899,24 @@ def test_cli_end_to_end_approval_workflow(tmp_path: Path) -> None:
             str(audit_path),
         ],
     )
+    audit_report = RUNNER.invoke(
+        app,
+        [
+            "audit",
+            "report",
+            "--approval-id",
+            approval_id,
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
 
     assert approved.exit_code == 0, approved.output
     assert executed.exit_code == 0, executed.output
     assert report.exit_code == 0, report.output
+    assert audit_report.exit_code == 0, audit_report.output
     assert json.loads(executed.output)["result_status"] == "completed"
     assert (private_root / "e2e_note.txt").read_text(encoding="utf-8") == (
         "edited e2e content"
@@ -864,3 +940,17 @@ def test_cli_end_to_end_approval_workflow(tmp_path: Path) -> None:
         "approval_decided",
         "executed",
     ]
+    audit_report_output = json.loads(audit_report.output)
+    assert audit_report_output["request_summary"]["request_id"] == "req_e2e_write_note"
+    assert audit_report_output["request_summary"]["approval_ids"] == [approval_id]
+    assert [event["event_type"] for event in audit_report_output["audit_events"]] == [
+        "policy_decision",
+        "approval_created",
+        "approval_edited",
+        "approval_decided",
+        "executed",
+    ]
+    assert audit_report_output["decision_trail"][0]["risk"] == "medium"
+    assert audit_report_output["approvals"][0]["status"] == "approved"
+    assert audit_report_output["approvals"][0]["execution_status"] == "completed"
+    assert audit_report_output["execution_result"]["result_status"] == "completed"

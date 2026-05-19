@@ -143,6 +143,8 @@ Inspect audit events without opening the JSONL file directly:
 agentgate audit list --request-id req_write_private_note
 agentgate audit list --approval-id <approval-id>
 agentgate audit list --event-type approval_edited
+agentgate audit report --request-id req_write_private_note
+agentgate audit report --approval-id <approval-id>
 ```
 
 ## Policy Profiles
@@ -190,6 +192,8 @@ file_write = "require_approval"
 Load it with `--config agentgate.toml`. If `agentgate.toml` exists in the
 current directory, AgentGate loads it automatically. Explicit CLI workspace
 options override `[workspace]`, and `--policy-config` overrides `[policy]`.
+See [examples/agentgate.toml](examples/agentgate.toml) for a tracked sample
+profile.
 
 ## Optional Adapters
 
@@ -223,7 +227,8 @@ approval checks inside its own execution path, but it should be combined with
 OS-level isolation, filesystem permissions, network controls, and scoped
 credentials for real deployments.
 
-See [Security and privacy](docs/SECURITY_PRIVACY.md).
+See [Security and privacy](docs/SECURITY_PRIVACY.md) and the
+[Threat model walkthrough](docs/THREAT_MODEL_WALKTHROUGH.md).
 
 ## Contributing
 
@@ -239,6 +244,7 @@ reporting guidance lives in [Security policy](SECURITY.md).
 - [CLI owner workflow](docs/CLI_OWNER_WORKFLOW.md)
 - [Policy model](docs/POLICY_MODEL.md)
 - [Security and privacy](docs/SECURITY_PRIVACY.md)
+- [Threat model walkthrough](docs/THREAT_MODEL_WALKTHROUGH.md)
 - [Testing and evals](docs/TESTING_EVALS.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Framework references](docs/FRAMEWORK_REFERENCES.md)

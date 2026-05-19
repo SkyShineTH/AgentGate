@@ -1,0 +1,17 @@
+# Sample local AgentGate profile.
+#
+# From the repository root, try:
+# agentgate check examples/requests/read_public_file.json --config examples/agentgate.toml
+
+[workspace]
+base_dir = ".."
+public_root = "examples/workspace/public"
+private_root = "examples/workspace/private"
+
+[policy]
+private_read = "require_approval"
+file_write = "require_approval"
+unknown_tool = "deny"
+unknown_action = "deny"
+shell_execute = "deny"
+file_delete = "deny"
