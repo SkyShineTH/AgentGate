@@ -405,8 +405,15 @@ def audit_report(
         "--audit-log",
         help="JSONL audit log path.",
     ),
+    output_format: str = typer.Option(
+        "json",
+        "--format",
+        help="Output format: json or table.",
+    ),
 ) -> None:
     """Show request, decision, approval, and execution audit lifecycle."""
+    if output_format not in {"json", "table"}:
+        _fail("--format must be 'json' or 'table'.")
     if request_id is None and approval_id is None:
         _fail("Provide --request-id or --approval-id.")
 
@@ -440,6 +447,9 @@ def audit_report(
         approvals=_audit_approval_statuses(approval_records),
         execution_result=_audit_execution_result(events),
     )
+    if output_format == "table":
+        _echo_audit_report_table(report)
+        return
     _echo_json(report)
 
 
@@ -1030,6 +1040,113 @@ def _echo_eval_table(report: EvalReport) -> None:
             f"failed={report.failed_count}"
         )
     typer.echo("\n".join(lines))
+
+
+def _echo_audit_report_table(report: AuditLifecycleReport) -> None:
+    summary = report.request_summary
+    lines = [
+        "REQUEST SUMMARY",
+        *_format_table(
+            ("FIELD", "VALUE"),
+            [
+                ("request_id", summary.request_id),
+                ("actor", summary.actor or "-"),
+                ("tool", summary.tool or "-"),
+                ("action", summary.action or "-"),
+                ("resource", summary.resource or "-"),
+                ("approval_ids", ", ".join(summary.approval_ids) or "-"),
+                ("event_count", str(summary.event_count)),
+            ],
+        ),
+        "",
+        "AUDIT EVENTS",
+        *_format_table(
+            ("TIME", "EVENT", "DECISION", "RISK", "RULE", "APPROVAL", "RESULT"),
+            [
+                (
+                    event.get("timestamp", "-"),
+                    event.get("event_type", "-"),
+                    event.get("decision") or "-",
+                    event.get("risk") or "-",
+                    event.get("matched_rule") or "-",
+                    event.get("approval_id") or "-",
+                    event.get("result_status") or "-",
+                )
+                for event in report.audit_events
+            ],
+        ),
+        "",
+        "DECISION TRAIL",
+        *_format_table(
+            ("TIME", "DECISION", "RISK", "RULE", "REASON"),
+            [
+                (
+                    item.timestamp.isoformat(),
+                    item.decision,
+                    item.risk or "-",
+                    item.matched_rule or "-",
+                    item.reason or "-",
+                )
+                for item in report.decision_trail
+            ],
+        ),
+        "",
+        "APPROVALS",
+        *_format_table(
+            ("APPROVAL_ID", "STATUS", "EXECUTION", "DECIDED_BY"),
+            [
+                (
+                    item.approval_id,
+                    item.status,
+                    item.execution_status,
+                    item.decided_by or "-",
+                )
+                for item in report.approvals
+            ],
+        ),
+        "",
+        "EXECUTION RESULT",
+        *_format_table(
+            ("FIELD", "VALUE"),
+            _audit_execution_result_rows(report.execution_result),
+        ),
+    ]
+    typer.echo("\n".join(lines))
+
+
+def _audit_execution_result_rows(
+    result: AuditExecutionResult | None,
+) -> list[tuple[str, str]]:
+    if result is None:
+        return [("result_status", "-")]
+
+    payload = result.result or {}
+    return [
+        ("result_status", result.result_status),
+        ("approval_id", result.approval_id or "-"),
+        ("tool", str(payload.get("tool") or "-")),
+        ("action", str(payload.get("action") or "-")),
+        ("resource", str(payload.get("resource") or "-")),
+        ("message", str(payload.get("message") or "-")),
+    ]
+
+
+def _format_table(headers: tuple[str, ...], rows: list[tuple[str, ...]]) -> list[str]:
+    normalized_rows = rows or [tuple("-" for _ in headers)]
+    widths = [
+        max(len(str(row[index])) for row in [headers, *normalized_rows])
+        for index in range(len(headers))
+    ]
+    return [
+        " | ".join(value.ljust(widths[index]) for index, value in enumerate(headers)),
+        "-+-".join("-" * width for width in widths),
+        *(
+            " | ".join(
+                str(value).ljust(widths[index]) for index, value in enumerate(row)
+            )
+            for row in normalized_rows
+        ),
+    ]
 
 
 def _eval_pass_label(result: EvalResult) -> str:

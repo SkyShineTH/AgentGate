@@ -912,11 +912,27 @@ def test_cli_end_to_end_approval_workflow(tmp_path: Path) -> None:
             str(audit_path),
         ],
     )
+    audit_report_table = RUNNER.invoke(
+        app,
+        [
+            "audit",
+            "report",
+            "--approval-id",
+            approval_id,
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+            "--format",
+            "table",
+        ],
+    )
 
     assert approved.exit_code == 0, approved.output
     assert executed.exit_code == 0, executed.output
     assert report.exit_code == 0, report.output
     assert audit_report.exit_code == 0, audit_report.output
+    assert audit_report_table.exit_code == 0, audit_report_table.output
     assert json.loads(executed.output)["result_status"] == "completed"
     assert (private_root / "e2e_note.txt").read_text(encoding="utf-8") == (
         "edited e2e content"
@@ -954,3 +970,11 @@ def test_cli_end_to_end_approval_workflow(tmp_path: Path) -> None:
     assert audit_report_output["approvals"][0]["status"] == "approved"
     assert audit_report_output["approvals"][0]["execution_status"] == "completed"
     assert audit_report_output["execution_result"]["result_status"] == "completed"
+    assert "REQUEST SUMMARY" in audit_report_table.output
+    assert "AUDIT EVENTS" in audit_report_table.output
+    assert "DECISION TRAIL" in audit_report_table.output
+    assert "APPROVALS" in audit_report_table.output
+    assert "EXECUTION RESULT" in audit_report_table.output
+    assert "req_e2e_write_note" in audit_report_table.output
+    assert approval_id in audit_report_table.output
+    assert "completed" in audit_report_table.output
