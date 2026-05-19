@@ -182,6 +182,47 @@ private_read = "deny"
     assert output["matched_rule"] == "private_read_denied_by_policy"
 
 
+def test_cli_eval_reports_all_example_requests() -> None:
+    result = RUNNER.invoke(app, ["eval"])
+
+    assert result.exit_code == 0, result.output
+    output = json.loads(result.output)
+    assert output["request_count"] == 12
+    assert output["counts"] == {
+        "allow": 2,
+        "require_approval": 3,
+        "deny": 7,
+    }
+    result_files = {Path(item["file"]).name for item in output["results"]}
+    assert "read_public_file.json" in result_files
+    assert "append_private_job_tracker_requires_approval.json" in result_files
+    public_read = next(
+        item
+        for item in output["results"]
+        if Path(item["file"]).name == "read_public_file.json"
+    )
+    assert public_read["status"] == "allow"
+    assert public_read["matched_rule"] == "public_read_allowed"
+
+
+def test_cli_eval_can_render_table_for_request_directory() -> None:
+    result = RUNNER.invoke(
+        app,
+        [
+            "eval",
+            "--requests-path",
+            str(ROOT / "examples" / "requests"),
+            "--format",
+            "table",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "STATUS" in result.output
+    assert "read_public_file.json" in result.output
+    assert "Counts: allow=1, require_approval=2, deny=5" in result.output
+
+
 def test_cli_audit_list_filters_events(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"

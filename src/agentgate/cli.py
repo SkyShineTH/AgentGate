@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import typer
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from agentgate.approvals import (
     ApprovalConflict,
@@ -36,7 +36,32 @@ DEFAULT_STATE_DIR = Path(".agentgate")
 DEFAULT_APPROVAL_DB = DEFAULT_STATE_DIR / "approvals.sqlite"
 DEFAULT_AUDIT_LOG = DEFAULT_STATE_DIR / "audit.jsonl"
 DEFAULT_AGENTGATE_CONFIG = Path("agentgate.toml")
+DEFAULT_EVAL_ROOT = Path("examples")
 DEFAULT_PERSONALOPS_DEMO_DIR = DEFAULT_STATE_DIR / "personalops-demo"
+
+
+class EvalResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    file: str
+    request_id: str
+    scenario: str | None = None
+    actor: str | None = None
+    tool: str | None = None
+    action: str | None = None
+    resource: str | None = None
+    status: str
+    risk: str
+    matched_rule: str
+    reason: str
+
+
+class EvalReport(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    request_count: int
+    counts: dict[str, int] = Field(default_factory=dict)
+    results: list[EvalResult]
 
 
 @app.callback()
@@ -121,6 +146,80 @@ def check(
             )
 
     _echo_json(decision)
+
+
+@app.command("eval")
+def eval_requests(
+    requests_path: Path = typer.Option(
+        DEFAULT_EVAL_ROOT,
+        "--requests-path",
+        help="Example request file, requests directory, or examples root.",
+    ),
+    recursive: bool = typer.Option(
+        True,
+        "--recursive/--no-recursive",
+        help="Find request JSON files recursively under requests directories.",
+    ),
+    output_format: str = typer.Option(
+        "json",
+        "--format",
+        help="Output format: json or table.",
+    ),
+    config: Path | None = typer.Option(
+        None,
+        "--config",
+        help="Optional agentgate.toml profile path.",
+    ),
+    policy_config: Path | None = typer.Option(
+        None,
+        "--policy-config",
+        help="Optional JSON policy profile path. Overrides [policy] in --config.",
+    ),
+    workspace_base: Path | None = typer.Option(
+        None,
+        "--workspace-base",
+        help="Base directory for relative request resources.",
+    ),
+    public_root: Path | None = typer.Option(
+        None,
+        "--public-root",
+        help="Public workspace root for allowed reads.",
+    ),
+    private_root: Path | None = typer.Option(
+        None,
+        "--private-root",
+        help="Private workspace root for approval-gated reads and writes.",
+    ),
+) -> None:
+    """Evaluate example requests and summarize policy decisions."""
+    if output_format not in {"json", "table"}:
+        _fail("--format must be 'json' or 'table'.")
+
+    engine = _policy_engine(
+        config,
+        policy_config_path=policy_config,
+        workspace_base=workspace_base,
+        public_root=public_root,
+        private_root=private_root,
+    )
+    request_files = _collect_eval_request_files(requests_path, recursive=recursive)
+    if not request_files:
+        _fail(f"No request JSON files found under {requests_path}.")
+
+    results = []
+    for request_file in request_files:
+        result = _evaluate_request_file(engine, request_file)
+        results.append(result)
+
+    report = EvalReport(
+        request_count=len(results),
+        counts=_decision_counts(results),
+        results=results,
+    )
+    if output_format == "table":
+        _echo_eval_table(report)
+        return
+    _echo_json(report)
 
 
 @audit_app.command("list")
@@ -585,6 +684,105 @@ def _load_json(path: Path) -> dict[str, Any]:
         raise ValueError("Request JSON must contain an object.")
 
     return payload
+
+
+def _collect_eval_request_files(path: Path, *, recursive: bool) -> list[Path]:
+    if path.is_file():
+        return [path]
+    if not path.exists():
+        _fail(f"Request path does not exist: {path}")
+    if path.name == "requests":
+        return sorted(path.glob("*.json"))
+    if recursive:
+        return sorted(path.rglob("requests/*.json"))
+    return sorted(path.glob("*.json"))
+
+
+def _evaluate_request_file(engine: PolicyEngine, path: Path) -> EvalResult:
+    try:
+        payload = _load_json(path)
+    except ValueError as exc:
+        decision = Decision(
+            request_id="req_malformed",
+            status=DecisionStatus.DENY,
+            risk=RiskLevel.HIGH,
+            reason=str(exc),
+            matched_rule="malformed_request_denied",
+        )
+        return EvalResult(
+            file=str(path),
+            request_id=decision.request_id,
+            status=decision.status.value,
+            risk=decision.risk.value,
+            matched_rule=decision.matched_rule,
+            reason=decision.reason,
+        )
+
+    decision = engine.evaluate(payload)
+    request = _parse_request_or_none(payload)
+    return EvalResult(
+        file=str(path),
+        request_id=decision.request_id,
+        scenario=_metadata_value(request, "scenario"),
+        actor=request.actor if request else None,
+        tool=request.tool if request else None,
+        action=request.action if request else None,
+        resource=request.resource if request else None,
+        status=decision.status.value,
+        risk=decision.risk.value,
+        matched_rule=decision.matched_rule,
+        reason=decision.reason,
+    )
+
+
+def _metadata_value(request: ToolRequest | None, key: str) -> str | None:
+    if request is None:
+        return None
+    value = request.metadata.get(key)
+    return value if isinstance(value, str) else None
+
+
+def _decision_counts(results: list[EvalResult]) -> dict[str, int]:
+    counts = {
+        DecisionStatus.ALLOW.value: 0,
+        DecisionStatus.REQUIRE_APPROVAL.value: 0,
+        DecisionStatus.DENY.value: 0,
+    }
+    for result in results:
+        counts[result.status] = counts.get(result.status, 0) + 1
+    return counts
+
+
+def _echo_eval_table(report: EvalReport) -> None:
+    rows = [
+        (
+            result.status,
+            result.risk,
+            result.matched_rule,
+            result.request_id,
+            Path(result.file).name,
+        )
+        for result in report.results
+    ]
+    headers = ("STATUS", "RISK", "RULE", "REQUEST_ID", "FILE")
+    widths = [
+        max(len(str(row[index])) for row in [headers, *rows])
+        for index in range(len(headers))
+    ]
+    lines = [
+        " | ".join(value.ljust(widths[index]) for index, value in enumerate(headers)),
+        "-+-".join("-" * width for width in widths),
+    ]
+    lines.extend(
+        " | ".join(value.ljust(widths[index]) for index, value in enumerate(row))
+        for row in rows
+    )
+    lines.append("")
+    lines.append(
+        "Counts: "
+        + ", ".join(f"{status}={count}" for status, count in report.counts.items())
+    )
+    typer.echo("\n".join(lines))
 
 
 def _parse_request_or_none(payload: dict[str, Any]) -> ToolRequest | None:

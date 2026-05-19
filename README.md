@@ -65,6 +65,15 @@ then runs static JSON requests through AgentGate:
 - private tracker delete -> `deny`
 - shell command -> `deny`
 
+For a fast reviewer view of all example policy decisions:
+
+```bash
+agentgate eval --format table
+```
+
+This evaluates the tracked example requests without creating approvals or
+executing tools.
+
 ## Approval Flow
 
 Approval-required decisions are stored in a local SQLite queue under
