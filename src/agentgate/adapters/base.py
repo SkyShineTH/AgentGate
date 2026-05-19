@@ -12,4 +12,3 @@ class AdapterError(ValueError):
 class ToolRequestAdapter(Protocol):
     def to_tool_request(self) -> ToolRequest:
         """Convert an external tool-call shape into AgentGate's canonical request."""
-

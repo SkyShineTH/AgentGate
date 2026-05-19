@@ -182,6 +182,12 @@ credentials for real deployments.
 
 See [Security and privacy](docs/SECURITY_PRIVACY.md).
 
+## Contributing
+
+See [Contributing](CONTRIBUTING.md) for local setup, testing expectations,
+commit message rules, and contributor safety guidelines. Security and privacy
+reporting guidance lives in [Security policy](SECURITY.md).
+
 ## Project Context
 
 - [Agent instructions](AGENTS.md)

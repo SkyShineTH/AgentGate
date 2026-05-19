@@ -86,7 +86,9 @@ def _parse_arguments(value: Any) -> dict[str, Any]:
         try:
             parsed = json.loads(value)
         except json.JSONDecodeError as exc:
-            raise AdapterError("OpenAI-style function arguments must be valid JSON.") from exc
+            raise AdapterError(
+                "OpenAI-style function arguments must be valid JSON."
+            ) from exc
     elif isinstance(value, Mapping):
         parsed = dict(value)
     else:

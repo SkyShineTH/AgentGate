@@ -17,7 +17,9 @@ RUNNER = CliRunner()
 def test_check_queues_approval_required_request(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"
-    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    request_path = (
+        ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    )
 
     result = RUNNER.invoke(
         app,
@@ -53,7 +55,9 @@ def test_cli_check_uses_policy_config(tmp_path: Path) -> None:
     audit_path = tmp_path / "audit.jsonl"
     config_path = tmp_path / "policy.json"
     config_path.write_text('{"private_read": "deny"}', encoding="utf-8")
-    request_path = ROOT / "examples" / "requests" / "read_private_file_requires_approval.json"
+    request_path = (
+        ROOT / "examples" / "requests" / "read_private_file_requires_approval.json"
+    )
 
     result = RUNNER.invoke(
         app,
@@ -79,7 +83,9 @@ def test_cli_check_uses_policy_config(tmp_path: Path) -> None:
 def test_cli_audit_list_filters_events(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"
-    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    request_path = (
+        ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    )
     check = RUNNER.invoke(
         app,
         [
@@ -144,7 +150,9 @@ def test_cli_audit_list_filters_events(tmp_path: Path) -> None:
 def test_cli_list_filters_approval_records(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"
-    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    request_path = (
+        ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    )
     check = RUNNER.invoke(
         app,
         [
@@ -205,7 +213,9 @@ def test_cli_list_filters_approval_records(tmp_path: Path) -> None:
 def test_cli_approve_and_reject_use_request_id_guard(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"
-    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    request_path = (
+        ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    )
     check = RUNNER.invoke(
         app,
         [
@@ -258,7 +268,9 @@ def test_cli_edit_updates_pending_approval_payload_and_audit(
 ) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"
-    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    request_path = (
+        ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    )
     check = RUNNER.invoke(
         app,
         [
@@ -315,7 +327,9 @@ def test_cli_edit_updates_pending_approval_payload_and_audit(
 def test_cli_history_lists_approval_edit_payloads(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"
-    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    request_path = (
+        ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    )
     check = RUNNER.invoke(
         app,
         [
@@ -381,7 +395,9 @@ def test_cli_history_lists_approval_edit_payloads(tmp_path: Path) -> None:
 def test_cli_show_includes_current_payload_and_edit_summary(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"
-    request_path = ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    request_path = (
+        ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    )
     check = RUNNER.invoke(
         app,
         [

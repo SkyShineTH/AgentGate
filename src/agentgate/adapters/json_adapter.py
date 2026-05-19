@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
 
 from pydantic import ValidationError
 
@@ -21,4 +20,6 @@ class JsonToolRequestAdapter:
         try:
             return ToolRequest.model_validate(dict(self.payload))
         except ValidationError as exc:
-            raise AdapterError("JSON payload could not be converted to ToolRequest.") from exc
+            raise AdapterError(
+                "JSON payload could not be converted to ToolRequest."
+            ) from exc

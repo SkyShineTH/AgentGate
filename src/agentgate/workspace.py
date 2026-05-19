@@ -120,4 +120,3 @@ class WorkspaceBoundary:
             reason=reason,
             matched_rule=matched_rule,
         )
-

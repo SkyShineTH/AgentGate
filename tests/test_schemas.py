@@ -51,4 +51,3 @@ def test_decision_serializes_enum_values() -> None:
     )
 
     assert '"status":"allow"' in decision.model_dump_json()
-

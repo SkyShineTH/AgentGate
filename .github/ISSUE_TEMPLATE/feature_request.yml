@@ -1,0 +1,49 @@
+name: Feature request
+description: Propose a scoped AgentGate improvement.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        AgentGate should remain provider-agnostic at the core and use synthetic examples only.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Change
+      description: Describe the smallest useful version of the feature.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - policy
+        - approvals
+        - audit
+        - workspace-boundary
+        - adapters
+        - CLI
+        - docs
+        - tests
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Policy, Approval, and Audit Impact
+      description: Note expected impact or say "none".
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered

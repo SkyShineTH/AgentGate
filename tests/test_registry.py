@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from agentgate.policy import PolicyEngine
-from agentgate.registry import ToolDefinition, ToolRegistry, WRITE_TOOLS
+from agentgate.registry import WRITE_TOOLS, ToolDefinition, ToolRegistry
 from agentgate.schemas import DecisionStatus, RiskLevel, ToolRequest
 from agentgate.tools import ToolExecutor
 from agentgate.workspace import WorkspaceBoundary
@@ -152,6 +152,6 @@ def test_executor_allows_custom_registered_side_effect_tool(tmp_path: Path) -> N
     result = executor.execute(tool_request, authorized=True)
 
     assert result.result_status == "completed"
-    assert (
-        tmp_path / "examples" / "workspace" / "private" / "redacted.txt"
-    ).read_text(encoding="utf-8") == "redacted synthetic note"
+    assert (tmp_path / "examples" / "workspace" / "private" / "redacted.txt").read_text(
+        encoding="utf-8"
+    ) == "redacted synthetic note"

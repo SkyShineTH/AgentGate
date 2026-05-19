@@ -93,4 +93,6 @@ DEFAULT_TOOL_DEFINITIONS: tuple[ToolDefinition, ...] = (
     ),
 )
 
-WRITE_TOOLS = ToolRegistry.default().write_tools() - frozenset({"file.delete", "shell.execute"})
+WRITE_TOOLS = ToolRegistry.default().write_tools() - frozenset(
+    {"file.delete", "shell.execute"}
+)

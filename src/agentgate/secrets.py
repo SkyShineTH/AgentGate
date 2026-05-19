@@ -4,7 +4,6 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
-
 SECRET_KEY_RE = re.compile(
     r"(api[_-]?key|access[_-]?token|auth(orization)?|bearer|client[_-]?secret|"
     r"cookie|credential|password|passwd|private[_-]?key|secret|session)",
@@ -56,4 +55,3 @@ def redact(value: Any) -> Any:
         return "[REDACTED]"
 
     return value
-

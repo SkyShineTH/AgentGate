@@ -83,4 +83,3 @@ def test_personalops_demo_cli(tmp_path: Path) -> None:
     assert len(output["steps"]) == 4
     assert output["steps"][1]["status"] == "require_approval"
     assert output["steps"][1]["approval_status"] == "approved"
-

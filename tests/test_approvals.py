@@ -171,7 +171,9 @@ def test_existing_approval_database_adds_edit_history_table(
     db_path = tmp_path / "approvals.sqlite"
     approval_id = "appr_legacy"
     request = approval_request(tmp_path)
-    decision = approval_decision(request).model_copy(update={"approval_id": approval_id})
+    decision = approval_decision(request).model_copy(
+        update={"approval_id": approval_id}
+    )
     with sqlite3.connect(db_path) as conn:
         conn.execute(
             """

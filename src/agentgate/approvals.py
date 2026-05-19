@@ -84,13 +84,17 @@ class ApprovalQueue:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 
-    def create_pending(self, request: ToolRequest, decision: Decision) -> ApprovalRecord:
+    def create_pending(
+        self, request: ToolRequest, decision: Decision
+    ) -> ApprovalRecord:
         if decision.status != DecisionStatus.REQUIRE_APPROVAL:
             raise ApprovalConflict("Only require_approval decisions can be queued.")
 
         existing = self.find_by_request_id(request.request_id)
         if existing:
-            if self._request_identity(existing.request) != self._request_identity(request):
+            if self._request_identity(existing.request) != self._request_identity(
+                request
+            ):
                 raise ApprovalConflict(
                     "A different payload already exists for this request_id."
                 )
@@ -235,7 +239,9 @@ class ApprovalQueue:
         if record.execution_status != ExecutionStatus.NOT_EXECUTED:
             raise ApprovalConflict("Executed approvals cannot be edited.")
 
-        queued_decision = edited_decision.model_copy(update={"approval_id": approval_id})
+        queued_decision = edited_decision.model_copy(
+            update={"approval_id": approval_id}
+        )
         edit_record = ApprovalEditRecord(
             approval_id=approval_id,
             request_id=record.request_id,
@@ -324,7 +330,9 @@ class ApprovalQueue:
     ) -> ApprovalRecord:
         record = self.get(approval_id)
         if record.status != ApprovalStatus.APPROVED:
-            raise ApprovalNotExecutable("Only approved requests can be marked executed.")
+            raise ApprovalNotExecutable(
+                "Only approved requests can be marked executed."
+            )
         if record.execution_status != ExecutionStatus.IN_PROGRESS:
             raise ApprovalNotExecutable("Approval must be claimed before execution.")
 
@@ -479,9 +487,7 @@ class ApprovalQueue:
             decision=Decision.model_validate_json(row["decision_json"]),
             created_at=datetime.fromisoformat(row["created_at"]),
             decided_at=(
-                datetime.fromisoformat(row["decided_at"])
-                if row["decided_at"]
-                else None
+                datetime.fromisoformat(row["decided_at"]) if row["decided_at"] else None
             ),
             decided_by=row["decided_by"],
             decision_reason=row["decision_reason"],

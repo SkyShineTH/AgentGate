@@ -13,7 +13,6 @@ from agentgate.schemas import DecisionStatus, ToolRequest
 from agentgate.tools import ToolExecutor
 from agentgate.workspace import WorkspaceBoundary
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PERSONALOPS_ROOT = REPO_ROOT / "examples" / "personalops"
 PERSONALOPS_REQUESTS = [

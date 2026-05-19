@@ -67,9 +67,7 @@ def test_write_requires_approval(tmp_path: Path) -> None:
 
 
 def test_delete_denied(tmp_path: Path) -> None:
-    decision = engine(tmp_path).evaluate(
-        request(tool="file.delete", action="delete")
-    )
+    decision = engine(tmp_path).evaluate(request(tool="file.delete", action="delete"))
 
     assert decision.status == DecisionStatus.DENY
     assert decision.risk == RiskLevel.CRITICAL

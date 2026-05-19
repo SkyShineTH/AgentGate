@@ -64,4 +64,3 @@ def test_example_request_decisions() -> None:
         assert decision.status == status, filename
         assert decision.risk == risk, filename
         assert decision.matched_rule == matched_rule, filename
-

@@ -62,4 +62,3 @@ def test_allows_absolute_path_inside_public_workspace(tmp_path: Path) -> None:
 
     assert result.allowed is True
     assert result.workspace_kind == WorkspaceKind.PUBLIC
-
