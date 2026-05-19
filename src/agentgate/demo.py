@@ -105,9 +105,12 @@ def run_personalops_demo(
             step.execution_status = result.result_status
 
         if decision.status == DecisionStatus.REQUIRE_APPROVAL:
-            record = queue.create_pending(request, decision)
+            pending = queue.create_pending_result(request, decision)
+            record = pending.record
             audit.record(
-                event_type="approval_created",
+                event_type=(
+                    "approval_created" if pending.created else "approval_existing"
+                ),
                 request=record.request,
                 decision=record.decision,
                 approval_id=record.approval_id,

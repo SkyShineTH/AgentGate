@@ -60,6 +60,52 @@ def test_check_queues_approval_required_request(tmp_path: Path) -> None:
     ]
 
 
+def test_check_logs_existing_approval_for_duplicate_pending_request(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "approvals.sqlite"
+    audit_path = tmp_path / "audit.jsonl"
+    request_path = (
+        ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    )
+
+    first = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    second = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    assert (
+        json.loads(second.output)["approval_id"]
+        == json.loads(first.output)["approval_id"]
+    )
+    assert [event["event_type"] for event in load_json_lines(audit_path)] == [
+        "policy_decision",
+        "approval_created",
+        "policy_decision",
+        "approval_existing",
+    ]
+
+
 def test_cli_check_uses_policy_config(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"

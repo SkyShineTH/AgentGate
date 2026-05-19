@@ -136,10 +136,15 @@ def check(
             payload={"request": payload},
         )
         if request and decision.status == DecisionStatus.REQUIRE_APPROVAL:
-            record = ApprovalQueue(approval_db).create_pending(request, decision)
+            pending = ApprovalQueue(approval_db).create_pending_result(
+                request, decision
+            )
+            record = pending.record
             decision = record.decision
             AuditLog(audit_log).record(
-                event_type="approval_created",
+                event_type=(
+                    "approval_created" if pending.created else "approval_existing"
+                ),
                 request=record.request,
                 decision=record.decision,
                 approval_id=record.approval_id,

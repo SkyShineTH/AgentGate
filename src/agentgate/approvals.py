@@ -62,6 +62,13 @@ class ApprovalEditRecord(BaseModel):
     edit_reason: str | None = None
 
 
+class PendingApprovalResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    record: ApprovalRecord
+    created: bool
+
+
 class ApprovalQueueError(Exception):
     pass
 
@@ -87,6 +94,11 @@ class ApprovalQueue:
     def create_pending(
         self, request: ToolRequest, decision: Decision
     ) -> ApprovalRecord:
+        return self.create_pending_result(request, decision).record
+
+    def create_pending_result(
+        self, request: ToolRequest, decision: Decision
+    ) -> PendingApprovalResult:
         if decision.status != DecisionStatus.REQUIRE_APPROVAL:
             raise ApprovalConflict("Only require_approval decisions can be queued.")
 
@@ -99,7 +111,7 @@ class ApprovalQueue:
                     "A different payload already exists for this request_id."
                 )
             if existing.status == ApprovalStatus.PENDING:
-                return existing
+                return PendingApprovalResult(record=existing, created=False)
             raise ApprovalConflict("Approval has already been decided.")
 
         approval_id = f"appr_{uuid4().hex}"
@@ -112,7 +124,7 @@ class ApprovalQueue:
             decision=queued_decision,
         )
         self._insert(record)
-        return record
+        return PendingApprovalResult(record=record, created=True)
 
     def list(
         self,

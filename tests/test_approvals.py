@@ -97,6 +97,18 @@ def test_duplicate_pending_for_same_request_is_idempotent(tmp_path: Path) -> Non
     assert len(approvals.list()) == 1
 
 
+def test_create_pending_result_reports_existing_pending(tmp_path: Path) -> None:
+    request = approval_request(tmp_path)
+    approvals = queue(tmp_path)
+
+    first = approvals.create_pending_result(request, approval_decision(request))
+    second = approvals.create_pending_result(request, approval_decision(request))
+
+    assert first.created is True
+    assert second.created is False
+    assert second.record.approval_id == first.record.approval_id
+
+
 def test_duplicate_request_id_with_different_payload_is_rejected(
     tmp_path: Path,
 ) -> None:
