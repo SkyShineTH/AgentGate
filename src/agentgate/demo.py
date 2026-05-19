@@ -10,7 +10,7 @@ from agentgate.approvals import ApprovalQueue, ExecutionStatus
 from agentgate.audit import AuditLog
 from agentgate.policy import PolicyEngine
 from agentgate.schemas import DecisionStatus, ToolRequest
-from agentgate.tools import ToolExecutor
+from agentgate.tools import ExecutionAuthorization, ToolExecutor
 from agentgate.workspace import WorkspaceBoundary
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -90,7 +90,11 @@ def run_personalops_demo(
         )
 
         if decision.status == DecisionStatus.ALLOW:
-            result = executor.execute(request, authorized=True)
+            authorization = ExecutionAuthorization.from_policy_decision(
+                request,
+                decision,
+            )
+            result = executor.execute(request, authorization=authorization)
             audit.record(
                 event_type="executed",
                 request=request,
@@ -129,7 +133,11 @@ def run_personalops_demo(
                     },
                 )
                 claimed = queue.claim_for_execution(record.approval_id)
-                result = executor.execute(claimed.request, authorized=True)
+                authorization = ExecutionAuthorization.from_approval_claim(claimed)
+                result = executor.execute(
+                    claimed.request,
+                    authorization=authorization,
+                )
                 executed_status = ExecutionStatus(result.result_status)
                 queue.mark_executed(
                     record.approval_id,

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from agentgate.approvals import ApprovalRecord, ApprovalStatus, ExecutionStatus
 from agentgate.policy import PolicyEngine
 from agentgate.registry import WRITE_TOOLS, ToolDefinition, ToolRegistry
-from agentgate.schemas import DecisionStatus, RiskLevel, ToolRequest
-from agentgate.tools import ToolExecutor
+from agentgate.schemas import Decision, DecisionStatus, RiskLevel, ToolRequest
+from agentgate.tools import ExecutionAuthorization, ToolExecutor
 from agentgate.workspace import WorkspaceBoundary
 
 
@@ -33,6 +34,25 @@ def request(**overrides: object) -> dict[str, object]:
     }
     payload.update(overrides)
     return payload
+
+
+def approval_authorization(request: ToolRequest) -> ExecutionAuthorization:
+    record = ApprovalRecord(
+        approval_id="appr_registry_test",
+        request_id=request.request_id,
+        status=ApprovalStatus.APPROVED,
+        request=request,
+        decision=Decision(
+            request_id=request.request_id,
+            status=DecisionStatus.REQUIRE_APPROVAL,
+            risk=RiskLevel.MEDIUM,
+            reason="Approved in registry executor test.",
+            matched_rule="file_write_requires_approval",
+            approval_id="appr_registry_test",
+        ),
+        execution_status=ExecutionStatus.IN_PROGRESS,
+    )
+    return ExecutionAuthorization.from_approval_claim(record)
 
 
 def test_default_registry_lists_known_file_and_shell_tools() -> None:
@@ -120,7 +140,10 @@ def test_executor_uses_injected_registry_for_side_effects(tmp_path: Path) -> Non
         )
     )
 
-    result = executor.execute(tool_request, authorized=True)
+    result = executor.execute(
+        tool_request,
+        authorization=approval_authorization(tool_request),
+    )
 
     assert result.result_status == "denied"
     assert result.message == "No executor is registered for this tool."
@@ -149,7 +172,10 @@ def test_executor_allows_custom_registered_side_effect_tool(tmp_path: Path) -> N
         )
     )
 
-    result = executor.execute(tool_request, authorized=True)
+    result = executor.execute(
+        tool_request,
+        authorization=approval_authorization(tool_request),
+    )
 
     assert result.result_status == "completed"
     assert (tmp_path / "examples" / "workspace" / "private" / "redacted.txt").read_text(

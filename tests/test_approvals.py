@@ -14,7 +14,7 @@ from agentgate.approvals import (
     ExecutionStatus,
 )
 from agentgate.schemas import Decision, DecisionStatus, RiskLevel, ToolRequest
-from agentgate.tools import ToolExecutor
+from agentgate.tools import ExecutionAuthorization, ToolExecutor
 from agentgate.workspace import WorkspaceBoundary
 
 
@@ -474,9 +474,10 @@ def test_executor_uses_edited_approved_request_payload(tmp_path: Path) -> None:
     )
 
     claimed = approvals.claim_for_execution(record.approval_id)
+    authorization = ExecutionAuthorization.from_approval_claim(claimed)
     result = ToolExecutor(workspace(tmp_path)).execute(
         claimed.request,
-        authorized=True,
+        authorization=authorization,
     )
     target = tmp_path / "examples" / "workspace" / "private" / "draft_note.txt"
 
@@ -562,9 +563,10 @@ def test_executor_uses_stored_approved_request_payload(tmp_path: Path) -> None:
     )
 
     claimed = approvals.claim_for_execution(record.approval_id)
+    authorization = ExecutionAuthorization.from_approval_claim(claimed)
     result = ToolExecutor(workspace(tmp_path)).execute(
         claimed.request,
-        authorized=True,
+        authorization=authorization,
     )
     target = tmp_path / "examples" / "workspace" / "private" / "draft_note.txt"
 
@@ -580,3 +582,25 @@ def test_executor_denies_direct_unauthorized_execution(tmp_path: Path) -> None:
 
     assert result.result_status == "denied"
     assert target.exists() is False
+
+
+def test_executor_denies_mismatched_authorization_payload(tmp_path: Path) -> None:
+    approvals = queue(tmp_path)
+    request = approval_request(tmp_path)
+    record = approvals.create_pending(request, approval_decision(request))
+    approvals.approve(
+        record.approval_id,
+        approver="human-reviewer",
+        expected_request_id=request.request_id,
+    )
+    claimed = approvals.claim_for_execution(record.approval_id)
+    authorization = ExecutionAuthorization.from_approval_claim(claimed)
+    changed_request = request.model_copy(update={"input": {"content": "changed"}})
+
+    result = ToolExecutor(workspace(tmp_path)).execute(
+        changed_request,
+        authorization=authorization,
+    )
+
+    assert result.result_status == "denied"
+    assert result.message == "Execution authorization payload does not match request."

@@ -1,12 +1,87 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from agentgate.approvals import ApprovalRecord, ApprovalStatus, ExecutionStatus
 from agentgate.registry import ToolRegistry
-from agentgate.schemas import ToolRequest
+from agentgate.schemas import Decision, DecisionStatus, ToolRequest
 from agentgate.workspace import WorkspaceBoundary
+
+
+def request_fingerprint(request: ToolRequest) -> str:
+    payload = request.model_dump(mode="json")
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+class ExecutionAuthorization(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source: Literal["policy_allow", "approval_claim"]
+    request_id: str
+    request_fingerprint: str
+    decision_status: DecisionStatus
+    approval_id: str | None = None
+
+    @classmethod
+    def from_policy_decision(
+        cls,
+        request: ToolRequest,
+        decision: Decision,
+    ) -> "ExecutionAuthorization":
+        if decision.request_id != request.request_id:
+            raise ValueError("Decision request_id must match request.")
+        if decision.status != DecisionStatus.ALLOW:
+            raise ValueError("Only allow decisions can authorize direct execution.")
+        return cls(
+            source="policy_allow",
+            request_id=request.request_id,
+            request_fingerprint=request_fingerprint(request),
+            decision_status=decision.status,
+        )
+
+    @classmethod
+    def from_approval_claim(
+        cls,
+        record: ApprovalRecord,
+    ) -> "ExecutionAuthorization":
+        if record.status != ApprovalStatus.APPROVED:
+            raise ValueError("Only approved records can authorize execution.")
+        if record.execution_status != ExecutionStatus.IN_PROGRESS:
+            raise ValueError("Approval must be claimed before execution.")
+        if record.decision.status != DecisionStatus.REQUIRE_APPROVAL:
+            raise ValueError("Approval decision must be require_approval.")
+        if record.decision.approval_id != record.approval_id:
+            raise ValueError("Approval decision must match approval_id.")
+        return cls(
+            source="approval_claim",
+            request_id=record.request_id,
+            request_fingerprint=request_fingerprint(record.request),
+            decision_status=record.decision.status,
+            approval_id=record.approval_id,
+        )
+
+    def failure_reason(self, request: ToolRequest) -> str | None:
+        if self.request_id != request.request_id:
+            return "Execution authorization request_id does not match request."
+        if self.request_fingerprint != request_fingerprint(request):
+            return "Execution authorization payload does not match request."
+        if (
+            self.source == "policy_allow"
+            and self.decision_status != DecisionStatus.ALLOW
+        ):
+            return "Direct execution requires an allow decision."
+        if (
+            self.source == "approval_claim"
+            and self.decision_status != DecisionStatus.REQUIRE_APPROVAL
+        ):
+            return "Approval execution requires a require_approval decision."
+        return None
 
 
 class ExecutionResult(BaseModel):
@@ -35,15 +110,25 @@ class ToolExecutor:
         return cls()
 
     def execute(
-        self, request: ToolRequest, *, authorized: bool = False
+        self,
+        request: ToolRequest,
+        *,
+        authorization: ExecutionAuthorization | None = None,
     ) -> ExecutionResult:
-        if not authorized:
+        if authorization is None:
             return self._result(
                 request,
                 result_status="denied",
                 message=(
                     "Tool execution requires an allow decision or approved request."
                 ),
+            )
+        failure_reason = authorization.failure_reason(request)
+        if failure_reason is not None:
+            return self._result(
+                request,
+                result_status="denied",
+                message=failure_reason,
             )
 
         tool = self.registry.get(request.tool)

@@ -21,7 +21,7 @@ from agentgate.demo import run_personalops_demo
 from agentgate.policy import PolicyEngine
 from agentgate.policy_config import PolicyConfig, PolicyConfigError
 from agentgate.schemas import Decision, DecisionStatus, RiskLevel, ToolRequest
-from agentgate.tools import ToolExecutor
+from agentgate.tools import ExecutionAuthorization, ToolExecutor
 from agentgate.workspace import WorkspaceBoundary
 
 app = typer.Typer(add_completion=False, help="AgentGate policy gateway CLI.")
@@ -624,7 +624,11 @@ def execute(
         public_root=public_root,
         private_root=private_root,
     )
-    result = ToolExecutor(workspace).execute(record.request, authorized=True)
+    authorization = ExecutionAuthorization.from_approval_claim(record)
+    result = ToolExecutor(workspace).execute(
+        record.request,
+        authorization=authorization,
+    )
     execution_status = ExecutionStatus(result.result_status)
     try:
         record = queue.mark_executed(approval_id, result_status=execution_status)
