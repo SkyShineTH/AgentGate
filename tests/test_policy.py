@@ -142,6 +142,28 @@ def test_authorization_header_secret_denied(tmp_path: Path) -> None:
     assert decision.matched_rule == "secret_input_denied"
 
 
+def test_metadata_secret_denied(tmp_path: Path) -> None:
+    decision = engine(tmp_path).evaluate(request(metadata={"api_key": "synthetic-key"}))
+
+    assert decision.status == DecisionStatus.DENY
+    assert decision.risk == RiskLevel.CRITICAL
+    assert decision.matched_rule == "secret_input_denied"
+
+
+def test_resource_secret_denied_before_path_resolution(tmp_path: Path) -> None:
+    decision = engine(tmp_path).evaluate(
+        request(
+            resource=(
+                "examples/workspace/public/sk-abcdefghijklmnopqrstuvwxyz/note.txt"
+            )
+        )
+    )
+
+    assert decision.status == DecisionStatus.DENY
+    assert decision.risk == RiskLevel.CRITICAL
+    assert decision.matched_rule == "secret_input_denied"
+
+
 def test_malformed_request_denied(tmp_path: Path) -> None:
     malformed = request()
     malformed.pop("actor")

@@ -32,12 +32,18 @@ class PolicyEngine:
         if isinstance(request, Decision):
             return request
 
-        if contains_likely_secret(request.input):
+        if contains_likely_secret(
+            {
+                "input": request.input,
+                "metadata": request.metadata,
+                "resource": request.resource,
+            }
+        ):
             return self._decision(
                 request,
                 status=DecisionStatus.DENY,
                 risk=RiskLevel.CRITICAL,
-                reason="Request input contains a likely secret.",
+                reason="Request contains a likely secret.",
                 matched_rule="secret_input_denied",
             )
 

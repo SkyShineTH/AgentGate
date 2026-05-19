@@ -133,3 +133,26 @@ def test_audit_record_redacts_request_payload_secrets(tmp_path: Path) -> None:
         "[REDACTED]"
     )
     assert line["payload"]["request"]["input"]["session"] == "[REDACTED]"
+
+
+def test_audit_record_redacts_top_level_resource_secret(tmp_path: Path) -> None:
+    log_path = tmp_path / "audit.jsonl"
+    request_with_secret_resource = request().model_copy(
+        update={
+            "resource": (
+                "examples/workspace/private/"
+                "sk-abcdefghijklmnopqrstuvwxyz"
+                "/draft_note.txt"
+            )
+        }
+    )
+
+    AuditLog(log_path).record(
+        event_type="policy_decision",
+        request=request_with_secret_resource,
+        decision=decision(),
+    )
+
+    line = load_json_lines(log_path)[0]
+
+    assert line["resource"] == "[REDACTED]"

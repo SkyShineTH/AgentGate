@@ -55,7 +55,7 @@ class AuditLog:
             actor=request.actor if request else None,
             tool=request.tool if request else None,
             action=request.action if request else None,
-            resource=request.resource if request else None,
+            resource=self._resource(request),
             decision=decision.status.value if decision else None,
             reason=decision.reason if decision else None,
             matched_rule=decision.matched_rule if decision else None,
@@ -100,6 +100,13 @@ class AuditLog:
         if decision:
             return decision.request_id
         return "req_unknown"
+
+    @staticmethod
+    def _resource(request: ToolRequest | None) -> str | None:
+        if request is None:
+            return None
+        redacted = redact(request.resource)
+        return redacted if isinstance(redacted, str) else "[REDACTED]"
 
 
 def load_json_lines(path: Path) -> list[dict[str, Any]]:
