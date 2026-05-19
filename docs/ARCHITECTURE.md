@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: 2026-05-09
+Last updated: 2026-05-19
 
 ## Architecture Goal
 
@@ -31,10 +31,9 @@ Adapter
   - Optional. The core can receive ToolRequest directly.
   |
   v
-Request Normalizer
-  - Validates required fields.
-  - Normalizes paths and resources.
-  - Adds request IDs and timestamps.
+Request parsing and schema validation
+  - Validates required ToolRequest fields with Pydantic.
+  - Adds request IDs and timestamps when missing.
   - Rejects malformed requests before policy evaluation.
   |
   v
@@ -78,16 +77,23 @@ Key fields:
 - `metadata`
 - `created_at`
 
-### RequestNormalizer
+### Request Parsing and Adapter Normalization
 
 Responsibilities:
 
-- Parse incoming JSON or adapter output.
-- Validate required fields.
-- Normalize resource identifiers.
-- Resolve file paths without following unsafe assumptions.
-- Attach request ID when missing.
+- Parse incoming JSON, CLI payloads, or adapter output.
+- Validate required fields through `ToolRequest`.
+- Attach request IDs and timestamps through schema defaults.
+- Preserve provider-specific metadata as context without using it as an
+  authorization source.
 - Fail closed on malformed input.
+
+Current implementation:
+
+- JSON payload parsing lives in CLI helpers and `JsonToolRequestAdapter`.
+- Provider-shaped mapping conversion lives in optional adapter helpers.
+- File path normalization is intentionally part of `WorkspaceBoundary`, not a
+  separate normalizer component.
 
 ### PolicyEngine
 
@@ -95,9 +101,14 @@ Responsibilities:
 
 - Use `ToolRegistry` to fail closed on unknown tools and unsupported actions.
 - Evaluate rules against normalized structured facts.
+- Resolve file resources through `WorkspaceBoundary`.
 - Avoid natural-language intent as the only policy input.
 - Return typed decisions.
 - Make default behavior explicit.
+
+`PolicyEngine` can be constructed with explicit workspace and policy profiles.
+The CLI can load those profiles from `agentgate.toml`, JSON policy config, or
+workspace root flags.
 
 ### ApprovalQueue
 
@@ -144,6 +155,9 @@ Responsibilities:
 - Return structured results.
 - Avoid logging raw sensitive outputs.
 
+The local executor implements file read/write-style requests only. Shell and
+delete execution are denied or unimplemented in the MVP.
+
 ### AuditLog
 
 Responsibilities:
@@ -158,6 +172,8 @@ MVP:
 
 - JSONL audit log for simple inspectability.
 - SQLite approval store for pending and decided requests.
+- Optional local `agentgate.toml` profile for workspace roots and policy
+  defaults.
 
 Later:
 
@@ -195,8 +211,12 @@ Fail closed when:
 Failing closed means returning `deny` or `require_approval`, never executing the
 tool silently.
 
-## Open Questions
+## Current Follow-Ups
 
-- Should the first audit store be JSONL only, SQLite only, or both?
-- Should policy be expressed as Python rules first or YAML rules first?
-- Should shell execution exist in the MVP as denied examples only?
+- Replace the executor's boolean authorization marker with a typed
+  authorization object tied to the request or approval record.
+- Decide whether `file.update` needs a stricter non-overwrite execution
+  contract.
+- Extend audit redaction to top-level event fields if future resources can
+  contain tokens or credentials.
+- Define API/MCP resource boundaries before adding network-capable tools.

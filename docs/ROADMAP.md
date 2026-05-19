@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-05-07
+Last updated: 2026-05-19
 
 Roadmap entries must not imply shipped functionality. Use `Planned`,
 `Exploring`, or `Open Question` labels until implementation and tests exist.
@@ -138,8 +138,11 @@ Implemented notes:
 
 - README now provides a quick reviewer path, demo commands, and project links.
 - Added a Mermaid architecture diagram.
-- Added GitHub Actions CI for `python -m pytest`.
+- Added GitHub Actions CI for Ruff and `python -m pytest` on Ubuntu and
+  Windows.
 - Added portfolio positioning notes and a resume bullet.
+- Added contributor setup files, issue templates, and security reporting
+  guidance.
 
 Goals:
 
@@ -186,9 +189,54 @@ Exit criteria:
 - Known limitations are explicit and avoid production-security overclaims.
 - Default tests and demo still run locally without network access or API keys.
 
+## Phase 7: Local Workspace Profiles and Eval Runner
+
+Status: Implemented
+
+Implemented notes:
+
+- Added `agentgate.toml` support for local workspace roots and policy defaults.
+- Added CLI workspace overrides with `--workspace-base`, `--public-root`, and
+  `--private-root` for `check`, approval edits, approval execution, and evals.
+- Kept `--policy-config` as a JSON override for policy-only profiles.
+- Added `agentgate eval` to evaluate tracked example request fixtures and
+  summarize decisions as JSON or a table.
+- Eval runs are read-only: they do not create approvals and do not execute
+  tools.
+
+Goals:
+
+- Make AgentGate usable against local synthetic workspaces outside the tracked
+  example directory.
+- Give reviewers one command that shows the default allow, deny, and approval
+  boundary across example requests.
+- Preserve deterministic policy behavior and provider-agnostic core logic.
+
+Exit criteria:
+
+- CLI tests cover custom workspace roots and `agentgate.toml` policy profiles.
+- CLI tests cover JSON and table eval output.
+- Default tests still run without network access or API keys.
+
+## Resolved Decisions
+
+- The first policy representation is deterministic Python rules with a small
+  JSON policy profile override.
+- The CLI remains the primary interface for the MVP and portfolio demo.
+- The approval store is SQLite.
+- The first adapter surface is optional JSON/OpenAI-style function-call
+  normalization without provider SDK dependencies.
+- The audit store is JSONL for the MVP.
+- Shell execution remains denied by policy and unimplemented by the local
+  executor.
+
 ## Open Questions
 
-- Should the first policy representation be Python rules or YAML?
-- Should the CLI be the only interface until Phase 3?
-- Should the approval store start as SQLite or JSON files?
-- Which adapter gives the clearest portfolio signal first?
+- Should typed execution authorization replace the current boolean executor
+  guard?
+- Should audit records redact or normalize top-level resource fields in
+  addition to payload fields?
+- Should `file.update` get a stricter update contract or be removed until it is
+  implemented distinctly from overwrite?
+- Should future API/MCP tool requests use the same workspace profile format or
+  a separate resource-boundary model?
