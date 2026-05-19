@@ -98,11 +98,14 @@ Use JSON output when another tool should consume the report:
 agentgate audit report --request-id req_write_private_note --approval-db .agentgate\audit-lifecycle-demo\approvals.sqlite --audit-log .agentgate\audit-lifecycle-demo\audit.jsonl
 ```
 
+The same commands can use SQLite-backed audit storage by changing
+`--audit-log` to a path such as `.agentgate\audit-lifecycle-demo\audit.sqlite`.
+
 ## 5. What This Demonstrates
 
 - The policy decision is explicit before execution.
 - Approval is request-specific and tied to `req_write_private_note`.
 - Execution happens only after approval and records `result_status`.
 - Audit events preserve policy source and workspace source context.
-- The lifecycle report turns JSONL audit events into a portfolio-readable
+- The lifecycle report turns structured audit events into a portfolio-readable
   feature, not just an implementation detail.

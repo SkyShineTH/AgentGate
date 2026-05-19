@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 from agentgate.audit import AuditLog, load_json_lines, redact
@@ -92,6 +93,43 @@ def test_audit_log_filters_events(tmp_path: Path) -> None:
     assert [
         event.request_id for event in audit.list_events(event_type="policy_decision")
     ] == ["req_audit", "req_other"]
+
+
+def test_audit_log_appends_sqlite_events(tmp_path: Path) -> None:
+    log_path = tmp_path / "audit.sqlite"
+    audit = AuditLog(log_path)
+
+    audit.record(
+        event_type="policy_decision",
+        request=request(),
+        decision=decision().model_copy(update={"approval_id": None}),
+        payload={"input": {"content": "synthetic content"}},
+    )
+    audit.record(
+        event_type="approval_created",
+        request=request(),
+        decision=decision(),
+        approval_id="appr_audit",
+    )
+
+    events = audit.read_events()
+
+    assert audit.backend == "sqlite"
+    assert [event.event_type for event in events] == [
+        "policy_decision",
+        "approval_created",
+    ]
+    assert events[0].request_id == "req_audit"
+    assert events[0].decision == "require_approval"
+    assert events[0].risk == "medium"
+    assert events[1].approval_id == "appr_audit"
+    assert [
+        event.event_type for event in audit.list_events(approval_id="appr_audit")
+    ] == ["approval_created"]
+
+    with sqlite3.connect(log_path) as conn:
+        row = conn.execute("SELECT count(*) FROM audit_events").fetchone()
+    assert row == (2,)
 
 
 def test_audit_redacts_likely_secrets() -> None:

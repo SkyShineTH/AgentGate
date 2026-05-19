@@ -76,6 +76,7 @@ Required cases:
 - execution result emits an audit event
 - logs contain required metadata
 - logs do not contain raw secrets
+- JSONL and SQLite audit backends preserve the same event fields
 
 ### Adapter Tests
 

@@ -457,6 +457,64 @@ def test_cli_audit_list_filters_events(tmp_path: Path) -> None:
     assert json.loads(by_type.output)[0]["approval_id"] == approval_id
 
 
+def test_cli_audit_commands_support_sqlite_backend(tmp_path: Path) -> None:
+    db_path = tmp_path / "approvals.sqlite"
+    audit_path = tmp_path / "audit.sqlite"
+    request_path = (
+        ROOT / "examples" / "requests" / "write_private_note_requires_approval.json"
+    )
+    check = RUNNER.invoke(
+        app,
+        [
+            "check",
+            str(request_path),
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    assert check.exit_code == 0, check.output
+    approval_id = json.loads(check.output)["approval_id"]
+
+    listed = RUNNER.invoke(
+        app,
+        [
+            "audit",
+            "list",
+            "--request-id",
+            "req_write_private_note",
+            "--audit-log",
+            str(audit_path),
+        ],
+    )
+    report = RUNNER.invoke(
+        app,
+        [
+            "audit",
+            "report",
+            "--approval-id",
+            approval_id,
+            "--approval-db",
+            str(db_path),
+            "--audit-log",
+            str(audit_path),
+            "--format",
+            "table",
+        ],
+    )
+
+    assert listed.exit_code == 0, listed.output
+    assert report.exit_code == 0, report.output
+    assert [event["event_type"] for event in json.loads(listed.output)] == [
+        "policy_decision",
+        "approval_created",
+    ]
+    assert "REQUEST SUMMARY" in report.output
+    assert "approval_created" in report.output
+    assert approval_id in report.output
+
+
 def test_cli_list_filters_approval_records(tmp_path: Path) -> None:
     db_path = tmp_path / "approvals.sqlite"
     audit_path = tmp_path / "audit.jsonl"

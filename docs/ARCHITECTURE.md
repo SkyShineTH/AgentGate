@@ -171,6 +171,7 @@ Responsibilities:
 MVP:
 
 - JSONL audit log for simple inspectability.
+- SQLite audit log backend for queryable local audit records.
 - SQLite approval store for pending and decided requests.
 - Optional local `agentgate.toml` profile for workspace roots and policy
   defaults.

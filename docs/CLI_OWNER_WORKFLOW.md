@@ -211,6 +211,14 @@ agentgate audit list --approval-id <approval-id>
 agentgate audit list --event-type approval_edited
 ```
 
+To store audit events in SQLite instead, pass a `.sqlite`, `.sqlite3`, or `.db`
+path to every command that should share the audit store:
+
+```bat
+agentgate check examples\requests\write_private_note_requires_approval.json --audit-log .agentgate\audit.sqlite
+agentgate audit report --request-id req_write_private_note --audit-log .agentgate\audit.sqlite --format table
+```
+
 Common event types:
 
 - `policy_decision`

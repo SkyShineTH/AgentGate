@@ -23,7 +23,7 @@ execution.
 - Deterministic `allow`, `deny`, and `require_approval` policy decisions
 - Public/private workspace boundaries with path traversal protection
 - Request-specific human approval before approved execution
-- SQLite approval queue and JSONL audit log
+- SQLite approval queue and JSONL or SQLite audit log
 - Explicit execution authorization and regression tests for bypass cases
 - Optional adapter helpers that convert external tool-call shapes into the
   canonical `ToolRequest`
@@ -133,11 +133,11 @@ agentgate approvals report <approval-id>
 ```
 
 The approval database keeps the current executable payload and the edit history;
-the JSONL audit log records the policy, approval, edit, decision, and execution
+the audit log records the policy, approval, edit, decision, and execution
 events. `approvals report` combines those approval, edit-history, and audit
 views into one JSON object.
 
-Inspect audit events without opening the JSONL file directly:
+Inspect audit events without opening the audit file directly:
 
 ```bash
 agentgate audit list --request-id req_write_private_note
@@ -146,6 +146,9 @@ agentgate audit list --event-type approval_edited
 agentgate audit report --request-id req_write_private_note
 agentgate audit report --approval-id <approval-id>
 ```
+
+The default audit path is JSONL. Use a `.sqlite`, `.sqlite3`, or `.db`
+`--audit-log` path for SQLite-backed audit storage.
 
 ## Policy Profiles
 
